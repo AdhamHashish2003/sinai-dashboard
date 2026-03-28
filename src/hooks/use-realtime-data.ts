@@ -75,6 +75,30 @@ export function useRealtimeData() {
           case "users":
             queryClient.invalidateQueries({ queryKey: ["users"] });
             break;
+          case "keywords":
+            queryClient.invalidateQueries({ queryKey: ["keywords"] });
+            break;
+          case "calendar":
+            queryClient.invalidateQueries({ queryKey: ["calendar"] });
+            break;
+          case "page-views":
+            queryClient.invalidateQueries({ queryKey: ["page-views"] });
+            break;
+          case "traffic-sources":
+            queryClient.invalidateQueries({ queryKey: ["traffic-sources"] });
+            break;
+          case "seo-overview":
+            queryClient.invalidateQueries({ queryKey: ["seo-overview"] });
+            break;
+          case "sales":
+            queryClient.invalidateQueries({ queryKey: ["sales"] });
+            break;
+          case "conversion-funnel":
+            queryClient.invalidateQueries({ queryKey: ["conversion-funnel"] });
+            break;
+          case "top-products":
+            queryClient.invalidateQueries({ queryKey: ["top-products"] });
+            break;
         }
       });
 

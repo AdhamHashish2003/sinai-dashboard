@@ -15,7 +15,7 @@ export function ActiveUsersWidget() {
   const { data, isLoading } = useQuery({ queryKey: ["users"], queryFn: fetchUsers, refetchInterval: 30_000 });
 
   if (isLoading) {
-    return <div className="h-56 flex items-center justify-center text-muted-foreground text-sm">Loading...</div>;
+    return <div className="h-56 space-y-3"><div className="h-6 w-24 rounded bg-muted animate-skeleton" /><div className="h-44 rounded bg-muted animate-skeleton" /></div>;
   }
 
   const products = data?.products ?? [];
@@ -46,16 +46,11 @@ export function ActiveUsersWidget() {
 
       <ResponsiveContainer width="100%" height={120}>
         <BarChart data={products} barCategoryGap="30%">
-          <XAxis
-            dataKey="productName"
-            tick={{ fontSize: 10, fill: "hsl(215 16% 57%)" }}
-            tickLine={false}
-            axisLine={false}
-          />
+          <XAxis dataKey="productName" tick={{ fontSize: 10, fill: "hsl(var(--chart-axis-text))" }} tickLine={false} axisLine={false} />
           <YAxis hide />
           <Tooltip
             formatter={(v: number) => [v.toLocaleString(), "Users"]}
-            contentStyle={{ background: "hsl(224 71% 6%)", border: "1px solid hsl(216 34% 17%)", borderRadius: 8, fontSize: 12 }}
+            contentStyle={{ background: "hsl(var(--chart-tooltip-bg))", border: "1px solid hsl(var(--chart-tooltip-border))", borderRadius: 8, fontSize: 12 }}
           />
           <Bar dataKey="activeUsers" radius={[4, 4, 0, 0]}>
             {products.map((_, i) => (

@@ -22,7 +22,7 @@ export function SocialGrowthWidget() {
   const { data, isLoading } = useQuery({ queryKey: ["social"], queryFn: fetchSocial, refetchInterval: 30_000 });
 
   if (isLoading) {
-    return <div className="h-56 flex items-center justify-center text-muted-foreground text-sm">Loading...</div>;
+    return <div className="h-56 space-y-3"><div className="h-6 w-24 rounded bg-muted animate-skeleton" /><div className="h-8 flex gap-2">{[1,2,3].map(i=><div key={i} className="h-6 w-20 rounded-full bg-muted animate-skeleton" />)}</div><div className="h-36 rounded bg-muted animate-skeleton" /></div>;
   }
 
   const { accounts = [], chartData = [] } = data ?? {};
@@ -42,10 +42,7 @@ export function SocialGrowthWidget() {
       <div className="mb-3 flex flex-wrap gap-2">
         {accounts.map((a) => (
           <div key={a.handle} className="flex items-center gap-1.5 rounded-full border border-border px-2 py-0.5 text-xs">
-            <span
-              className="h-2 w-2 rounded-full"
-              style={{ background: PLATFORM_COLORS[a.platform] ?? "#6366f1" }}
-            />
+            <span className="h-2 w-2 rounded-full" style={{ background: PLATFORM_COLORS[a.platform] ?? "#6366f1" }} />
             <span className="text-muted-foreground">{a.handle}</span>
             <span className="font-medium">{(a.followers / 1000).toFixed(1)}k</span>
             <span className="text-emerald-400">+{a.followersChange}</span>
@@ -55,36 +52,17 @@ export function SocialGrowthWidget() {
 
       <ResponsiveContainer width="100%" height={140}>
         <LineChart data={chartData}>
-          <CartesianGrid strokeDasharray="3 3" stroke="hsl(216 34% 17%)" />
-          <XAxis
-            dataKey="date"
-            tick={{ fontSize: 10, fill: "hsl(215 16% 57%)" }}
-            tickFormatter={(v: string) => format(new Date(v), "MMM d")}
-            tickLine={false}
-            axisLine={false}
-          />
-          <YAxis
-            tick={{ fontSize: 10, fill: "hsl(215 16% 57%)" }}
-            tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k`}
-            tickLine={false}
-            axisLine={false}
-            width={40}
-          />
+          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--chart-grid))" />
+          <XAxis dataKey="date" tick={{ fontSize: 10, fill: "hsl(var(--chart-axis-text))" }} tickFormatter={(v: string) => format(new Date(v), "MMM d")} tickLine={false} axisLine={false} />
+          <YAxis tick={{ fontSize: 10, fill: "hsl(var(--chart-axis-text))" }} tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k`} tickLine={false} axisLine={false} width={40} />
           <Tooltip
             formatter={(v: number, name: string) => [v.toLocaleString(), name]}
             labelFormatter={(l: string) => format(new Date(l), "MMM d, yyyy")}
-            contentStyle={{ background: "hsl(224 71% 6%)", border: "1px solid hsl(216 34% 17%)", borderRadius: 8, fontSize: 12 }}
+            contentStyle={{ background: "hsl(var(--chart-tooltip-bg))", border: "1px solid hsl(var(--chart-tooltip-border))", borderRadius: 8, fontSize: 12 }}
           />
           <Legend wrapperStyle={{ fontSize: 11 }} />
           {platforms.map((p) => (
-            <Line
-              key={p}
-              type="monotone"
-              dataKey={p}
-              stroke={PLATFORM_COLORS[p] ?? "#6366f1"}
-              strokeWidth={1.5}
-              dot={false}
-            />
+            <Line key={p} type="monotone" dataKey={p} stroke={PLATFORM_COLORS[p] ?? "#6366f1"} strokeWidth={1.5} dot={false} />
           ))}
         </LineChart>
       </ResponsiveContainer>

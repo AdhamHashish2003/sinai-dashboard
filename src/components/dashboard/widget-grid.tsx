@@ -7,20 +7,17 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
-  type DragEndEvent,
 } from "@dnd-kit/core";
 import {
-  arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
   rectSortingStrategy,
-  useSortable,
 } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import { useState, type ComponentType } from "react";
-import { GripVertical } from "lucide-react";
+import type { ComponentType } from "react";
 import type { WidgetConfig, WidgetId } from "@/types/dashboard";
+import { useWidgetGrid } from "@/hooks/use-widget-grid";
 import { useRealtimeData } from "@/hooks/use-realtime-data";
+import { SortableWidgetCard } from "./sortable-widget-card";
 import { MrrChartWidget } from "./widgets/mrr-chart";
 import { SocialGrowthWidget } from "./widgets/social-growth";
 import { KeywordRankingsWidget } from "./widgets/keyword-rankings";
@@ -37,51 +34,17 @@ const DEFAULT_WIDGETS: WidgetConfig[] = [
   { id: "content-calendar", title: "Content Calendar", position: 5 },
 ];
 
-const WIDGET_COMPONENTS: Record<WidgetId, ComponentType> = {
-  "mrr-chart": MrrChartWidget,
-  "social-growth": SocialGrowthWidget,
-  "keyword-rankings": KeywordRankingsWidget,
-  "webhooks": WebhooksWidget,
-  "active-users": ActiveUsersWidget,
-  "content-calendar": ContentCalendarWidget,
+const WIDGET_COMPONENTS: Record<WidgetId, ComponentType<Record<string, unknown>>> = {
+  "mrr-chart": MrrChartWidget as ComponentType<Record<string, unknown>>,
+  "social-growth": SocialGrowthWidget as ComponentType<Record<string, unknown>>,
+  "keyword-rankings": KeywordRankingsWidget as ComponentType<Record<string, unknown>>,
+  "webhooks": WebhooksWidget as ComponentType<Record<string, unknown>>,
+  "active-users": ActiveUsersWidget as ComponentType<Record<string, unknown>>,
+  "content-calendar": ContentCalendarWidget as ComponentType<Record<string, unknown>>,
 };
 
-function SortableWidget({ widget }: { widget: WidgetConfig }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: widget.id });
-  const Component = WIDGET_COMPONENTS[widget.id];
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={{
-        transform: CSS.Transform.toString(transform),
-        transition,
-        opacity: isDragging ? 0.4 : 1,
-        zIndex: isDragging ? 50 : undefined,
-        position: "relative",
-      }}
-      className="rounded-xl border border-border bg-card text-card-foreground shadow-sm"
-    >
-      <div className="flex items-center justify-between px-4 pt-4 pb-2">
-        <h3 className="text-sm font-semibold text-foreground">{widget.title}</h3>
-        <button
-          {...attributes}
-          {...listeners}
-          className="cursor-grab text-muted-foreground hover:text-foreground active:cursor-grabbing"
-          aria-label={`Drag ${widget.title}`}
-        >
-          <GripVertical size={16} />
-        </button>
-      </div>
-      <div className="px-4 pb-4">
-        <Component />
-      </div>
-    </div>
-  );
-}
-
 export function WidgetGrid() {
-  const [widgets, setWidgets] = useState(DEFAULT_WIDGETS);
+  const { mounted, widgets, handleDragEnd } = useWidgetGrid("sinai-saas-order", DEFAULT_WIDGETS);
   useRealtimeData();
 
   const sensors = useSensors(
@@ -89,15 +52,14 @@ export function WidgetGrid() {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  function handleDragEnd(event: DragEndEvent) {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-
-    setWidgets((prev) => {
-      const oldIdx = prev.findIndex((w) => w.id === active.id);
-      const newIdx = prev.findIndex((w) => w.id === over.id);
-      return arrayMove(prev, oldIdx, newIdx).map((w, i) => ({ ...w, position: i }));
-    });
+  if (!mounted) {
+    return (
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {DEFAULT_WIDGETS.map((w) => (
+          <div key={w.id} className="rounded-xl border border-border bg-card h-72 animate-skeleton" />
+        ))}
+      </div>
+    );
   }
 
   return (
@@ -105,7 +67,12 @@ export function WidgetGrid() {
       <SortableContext items={widgets.map((w) => w.id)} strategy={rectSortingStrategy}>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {widgets.map((widget) => (
-            <SortableWidget key={widget.id} widget={widget} />
+            <SortableWidgetCard
+              key={widget.id}
+              id={widget.id}
+              title={widget.title}
+              Component={WIDGET_COMPONENTS[widget.id]}
+            />
           ))}
         </div>
       </SortableContext>

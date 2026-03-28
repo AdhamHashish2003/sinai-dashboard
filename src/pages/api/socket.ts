@@ -3,6 +3,7 @@ import type { Server as HTTPServer } from "http";
 import type { Socket as NetSocket } from "net";
 import { Server as IOServer } from "socket.io";
 import { setIO } from "@/lib/socket-server";
+import { startRefreshEngine } from "@/lib/refresh-engine";
 
 interface SocketServer extends HTTPServer {
   io?: IOServer;
@@ -34,6 +35,9 @@ export default function socketHandler(_req: NextApiRequest, res: NextApiResponse
       if (room === "dashboard") socket.join("dashboard");
     });
   });
+
+  // Start the auto-refresh engine in this long-lived process
+  startRefreshEngine();
 
   res.end();
 }

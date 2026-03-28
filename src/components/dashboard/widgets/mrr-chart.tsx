@@ -26,7 +26,7 @@ export function MrrChartWidget() {
   const { data, isLoading } = useQuery({ queryKey: ["mrr"], queryFn: fetchMrr, refetchInterval: 30_000 });
 
   if (isLoading) {
-    return <div className="h-56 flex items-center justify-center text-muted-foreground text-sm">Loading...</div>;
+    return <div className="h-56 space-y-3"><div className="h-6 w-32 rounded bg-muted animate-skeleton" /><div className="h-44 rounded bg-muted animate-skeleton" /></div>;
   }
 
   const { products = [], chartData = [], totalMrrCents = 0, mrrChangePct = 0 } = data ?? {};
@@ -52,16 +52,16 @@ export function MrrChartWidget() {
               </linearGradient>
             ))}
           </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="hsl(216 34% 17%)" />
+          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--chart-grid))" />
           <XAxis
             dataKey="date"
-            tick={{ fontSize: 10, fill: "hsl(215 16% 57%)" }}
+            tick={{ fontSize: 10, fill: "hsl(var(--chart-axis-text))" }}
             tickFormatter={(v: string) => format(new Date(v), "MMM d")}
             tickLine={false}
             axisLine={false}
           />
           <YAxis
-            tick={{ fontSize: 10, fill: "hsl(215 16% 57%)" }}
+            tick={{ fontSize: 10, fill: "hsl(var(--chart-axis-text))" }}
             tickFormatter={(v: number) => `$${Math.round(v / 100).toLocaleString()}`}
             tickLine={false}
             axisLine={false}
@@ -70,7 +70,7 @@ export function MrrChartWidget() {
           <Tooltip
             formatter={(v: number, name: string) => [formatCents(v), name]}
             labelFormatter={(l: string) => format(new Date(l), "MMM d, yyyy")}
-            contentStyle={{ background: "hsl(224 71% 6%)", border: "1px solid hsl(216 34% 17%)", borderRadius: 8, fontSize: 12 }}
+            contentStyle={{ background: "hsl(var(--chart-tooltip-bg))", border: "1px solid hsl(var(--chart-tooltip-border))", borderRadius: 8, fontSize: 12 }}
           />
           <Legend wrapperStyle={{ fontSize: 11 }} />
           {products.map((p, i) => (

@@ -4,9 +4,9 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold tracking-tight">Overview</h2>
+        <h2 className="text-2xl font-bold tracking-tight">SaaS Overview</h2>
         <p className="text-muted-foreground text-sm mt-1">
-          Drag widgets to rearrange. Data updates in real-time.
+          MRR, users, social growth, and webhooks. Drag widgets to rearrange.
         </p>
       </div>
       <WidgetGrid />

@@ -85,6 +85,8 @@ model SocialAccount {
   id        String         @id @default(cuid())
   platform  String
   handle    String
+  avatarUrl String?
+  bio       String?
   createdAt DateTime       @default(now())
   metrics   SocialMetric[]
   posts     ContentPost[]
@@ -105,15 +107,16 @@ model SocialMetric {
 }
 
 model ContentPost {
-  id          String        @id @default(cuid())
-  accountId   String
-  account     SocialAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  title       String
-  platform    String
-  status      String
-  scheduledAt DateTime?
-  publishedAt DateTime?
-  createdAt   DateTime      @default(now())
+  id           String        @id @default(cuid())
+  accountId    String
+  account      SocialAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  title        String
+  platform     String
+  status       String
+  thumbnailUrl String?
+  scheduledAt  DateTime?
+  publishedAt  DateTime?
+  createdAt    DateTime      @default(now())
 
   @@index([scheduledAt])
   @@index([status])
@@ -146,6 +149,139 @@ model WebhookEvent {
 
   @@index([receivedAt])
   @@index([source])
+}
+
+// ─── Analytics: Page Views ────────────────────────────────────────────────────
+
+model PageView {
+  id             String   @id @default(cuid())
+  date           DateTime
+  totalViews     Int
+  uniqueVisitors Int
+
+  @@unique([date])
+  @@index([date])
+}
+
+// ─── Analytics: Traffic Sources ───────────────────────────────────────────────
+
+model TrafficSource {
+  id       String   @id @default(cuid())
+  date     DateTime
+  source   String   // organic, direct, social, referral, paid
+  visitors Int
+
+  @@index([date])
+  @@index([source])
+}
+
+// ─── Analytics: SEO Snapshots ─────────────────────────────────────────────────
+
+model SeoSnapshot {
+  id              String   @id @default(cuid())
+  date            DateTime
+  domainAuthority Int
+  indexedPages    Int
+  topLandingPage  String
+  topLandingViews Int
+
+  @@unique([date])
+  @@index([date])
+}
+
+// ─── Analytics: Sales & Revenue ───────────────────────────────────────────────
+
+model SalesOrder {
+  id             String   @id @default(cuid())
+  date           DateTime
+  totalOrders    Int
+  revenueCents   Int
+  aovCents       Int
+  conversionRate Float
+
+  @@unique([date])
+  @@index([date])
+}
+
+// ─── Analytics: Top Products ──────────────────────────────────────────────────
+
+model TopProduct {
+  id           String   @id @default(cuid())
+  name         String
+  revenueCents Int
+  unitsSold    Int
+  recordedAt   DateTime
+
+  @@index([recordedAt])
+  @@index([revenueCents])
+}
+
+// ─── Analytics: Conversion Funnel ─────────────────────────────────────────────
+
+model FunnelSnapshot {
+  id        String   @id @default(cuid())
+  date      DateTime
+  visitors  Int
+  addToCart Int
+  checkout  Int
+  purchase  Int
+
+  @@unique([date])
+  @@index([date])
+}
+
+// ─── Connections (Auto-Linking) ───────────────────────────────────────────────
+
+model Connection {
+  id                     String             @id @default(cuid())
+  platform               String             // instagram, tiktok, youtube, twitter, linkedin
+  username               String
+  type                   String             // social, web
+  status                 String             @default("active") // active, paused, error
+  avatarUrl              String?
+  bio                    String?
+  lastFetchedAt          DateTime?
+  refreshIntervalMinutes Int                @default(30)
+  createdAt              DateTime           @default(now())
+  metrics                ConnectionMetric[]
+  webMetrics             WebMetric[]
+
+  @@unique([platform, username])
+  @@index([status])
+  @@index([type])
+}
+
+model ConnectionMetric {
+  id             String     @id @default(cuid())
+  connectionId   String
+  connection     Connection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  date           DateTime
+  followers      Int        @default(0)
+  following      Int        @default(0)
+  posts          Int        @default(0)
+  engagementRate Float      @default(0)
+  views          Int        @default(0)
+  likes          Int        @default(0)
+  comments       Int        @default(0)
+  shares         Int        @default(0)
+
+  @@index([connectionId, date])
+  @@index([date])
+}
+
+model WebMetric {
+  id                 String     @id @default(cuid())
+  connectionId       String
+  connection         Connection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  date               DateTime
+  pageViews          Int        @default(0)
+  uniqueVisitors     Int        @default(0)
+  bounceRate         Float      @default(0)
+  avgSessionDuration Float      @default(0)
+  topPages           Json       @default("[]")
+
+  @@index([connectionId, date])
+  @@index([date])
 }
 
 // ─── Widget Layout ────────────────────────────────────────────────────────────
