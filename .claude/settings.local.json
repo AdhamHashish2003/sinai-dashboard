@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Program Files/**)",
+      "Read(//c/Users/Adham/AppData/Roaming/**)",
+      "Read(//c/Users/Adham/**)",
+      "Bash(powershell.exe -Command \"Get-Command node -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source; Get-Command npm -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source\")",
+      "Bash(npx create-next-app@14 sinai-dashboard --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --no-turbo --use-npm)",
+      "Bash(export PATH=\"/c/Program Files/nodejs:$PATH\")",
+      "Bash(cmd.exe /c \"node --version\")",
+      "Bash(powershell.exe -Command \"node --version\")",
+      "Bash(powershell.exe -Command \"winget install OpenJS.NodeJS.LTS --accept-source-agreements --accept-package-agreements\")",
+      "Bash(npm --version)",
+      "Bash(npx create-next-app@14 sinai-dashboard-tmp --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --use-npm)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(find /c/Users/Adham -name npm -not -path */node_modules/*)",
+      "Bash(cp -r sinai-dashboard-tmp/* sinai-dashboard/)",
+      "Bash(cp sinai-dashboard-tmp/.eslintrc.json sinai-dashboard/)",
+      "Bash(cp sinai-dashboard-tmp/.gitignore sinai-dashboard/)",
+      "Bash(cp -r sinai-dashboard-tmp/.next sinai-dashboard/)",
+      "Bash(rm -rf sinai-dashboard-tmp)",
+      "Bash(cmd.exe /c \"where npm 2>&1 && where node 2>&1\")",
+      "Read(//c/ProgramData/nvm/**)",
+      "Read(//c/ProgramData/**)",
+      "Bash(npm install:*)",
+      "Bash(npx next:*)",
+      "Bash(\"/c/Program Files/nodejs/npm.cmd\" install)",
+      "Bash(git init:*)",
+      "Bash(git add:*)",
+      "Bash(git rm:*)",
+      "Bash(git commit:*)",
+      "Bash(\"/c/Program Files/nodejs/node.exe\" node_modules/.bin/prisma generate)",
+      "Bash(git config:*)"
+    ]
+  }
+}
