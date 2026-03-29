@@ -7,6 +7,7 @@ import {
   Plus,
   RefreshCw,
   Trash2,
+  Save,
   Instagram,
   Youtube,
 } from "lucide-react";
@@ -18,6 +19,7 @@ interface ConnectionData {
   username: string;
   type: string;
   status: string;
+  dataSource: string;
   avatarUrl: string | null;
   bio: string | null;
   lastFetchedAt: string | null;
@@ -59,27 +61,54 @@ function PlatformIcon({ platform, size = 16 }: { platform: string; size?: number
   }
 }
 
-const STATUS_STYLES: Record<string, { dot: string; label: string }> = {
-  active: { dot: "bg-emerald-400", label: "Active" },
-  paused: { dot: "bg-yellow-400", label: "Paused" },
-  error: { dot: "bg-red-400", label: "Error" },
-};
+function DataSourceBadge({ source }: { source: string }) {
+  if (source === "api") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-400/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-400">
+        <span className="h-1 w-1 rounded-full bg-emerald-400" />
+        Live
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-yellow-400/10 px-1.5 py-0.5 text-[10px] font-medium text-yellow-400">
+      <span className="h-1 w-1 rounded-full bg-yellow-400" />
+      Manual
+    </span>
+  );
+}
 
 function ConnectionCard({
   conn,
   onRefresh,
   onDelete,
+  onSave,
   isRefreshing,
   isDeleting,
+  isSaving,
 }: {
   conn: ConnectionData;
   onRefresh: () => void;
   onDelete: () => void;
+  onSave: (followers: number, engagementRate: number) => void;
   isRefreshing: boolean;
   isDeleting: boolean;
+  isSaving: boolean;
 }) {
-  const statusStyle = STATUS_STYLES[conn.status] ?? STATUS_STYLES.error;
+  const [editFollowers, setEditFollowers] = useState(String(conn.followers));
+  const [editEngagement, setEditEngagement] = useState(String(conn.engagementRate));
   const color = PLATFORM_COLORS[conn.platform] ?? "#6366f1";
+
+  const followersChanged = Number(editFollowers) !== conn.followers;
+  const engagementChanged = Number(editEngagement) !== conn.engagementRate;
+  const hasChanges = followersChanged || engagementChanged;
+
+  function handleSave() {
+    const f = parseInt(editFollowers, 10);
+    const e = parseFloat(editEngagement);
+    if (isNaN(f) || f < 0 || isNaN(e) || e < 0 || e > 100) return;
+    onSave(f, e);
+  }
 
   return (
     <div className="rounded-xl border border-border bg-card text-card-foreground shadow-sm p-4 transition-shadow duration-200 hover:shadow-md">
@@ -91,47 +120,63 @@ function ConnectionCard({
           <div>
             <div className="flex items-center gap-2">
               <h3 className="text-sm font-semibold">{conn.username}</h3>
-              <div className="flex items-center gap-1">
-                <span className={`h-1.5 w-1.5 rounded-full ${statusStyle.dot}`} />
-                <span className="text-[10px] text-muted-foreground">{statusStyle.label}</span>
-              </div>
+              <DataSourceBadge source={conn.dataSource} />
             </div>
             <p className="text-xs text-muted-foreground capitalize">{conn.platform} &middot; {conn.type}</p>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 mb-3 text-xs">
+      {/* Editable metrics */}
+      <div className="grid grid-cols-2 gap-3 mb-3">
         <div>
-          <span className="text-muted-foreground">Followers</span>
-          <p className="font-semibold">
-            {conn.followers >= 1_000_000
-              ? `${(conn.followers / 1_000_000).toFixed(1)}M`
-              : conn.followers >= 1_000
-              ? `${(conn.followers / 1_000).toFixed(1)}k`
-              : conn.followers}
-          </p>
+          <label className="block text-[10px] text-muted-foreground mb-1">Followers</label>
+          <input
+            type="number"
+            min="0"
+            value={editFollowers}
+            onChange={(e) => setEditFollowers(e.target.value)}
+            className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-xs font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+          />
         </div>
         <div>
-          <span className="text-muted-foreground">Engagement</span>
-          <p className="font-semibold">{conn.engagementRate}%</p>
+          <label className="block text-[10px] text-muted-foreground mb-1">Engagement %</label>
+          <input
+            type="number"
+            min="0"
+            max="100"
+            step="0.01"
+            value={editEngagement}
+            onChange={(e) => setEditEngagement(e.target.value)}
+            className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-xs font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+          />
         </div>
       </div>
 
       {conn.lastFetchedAt && (
         <p className="text-[10px] text-muted-foreground mb-3">
-          Last fetched {formatDistanceToNow(new Date(conn.lastFetchedAt), { addSuffix: true })}
+          Last updated {formatDistanceToNow(new Date(conn.lastFetchedAt), { addSuffix: true })}
         </p>
       )}
 
       <div className="flex items-center gap-2">
+        {hasChanges && (
+          <button
+            onClick={handleSave}
+            disabled={isSaving}
+            className="flex-1 flex items-center justify-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
+          >
+            <Save size={12} />
+            {isSaving ? "Saving..." : "Save"}
+          </button>
+        )}
         <button
           onClick={onRefresh}
           disabled={isRefreshing}
-          className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors disabled:opacity-50"
+          className={`${hasChanges ? "" : "flex-1 "}flex items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors disabled:opacity-50`}
         >
           <RefreshCw size={12} className={isRefreshing ? "animate-spin" : ""} />
-          {isRefreshing ? "Refreshing..." : "Refresh"}
+          {isRefreshing ? "..." : "Refresh"}
         </button>
         <button
           onClick={onDelete}
@@ -151,6 +196,7 @@ export default function ConnectionsPage() {
   const [platform, setPlatform] = useState<string>("instagram");
   const [refreshingId, setRefreshingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [savingId, setSavingId] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["connections"],
@@ -199,6 +245,20 @@ export default function ConnectionsPage() {
       .finally(() => setDeletingId(null));
   }
 
+  function handleSave(id: string, followers: number, engagementRate: number) {
+    setSavingId(id);
+    fetch(`/api/connections/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ followers, engagementRate }),
+    })
+      .then(() => {
+        queryClient.invalidateQueries({ queryKey: ["connections"] });
+        queryClient.invalidateQueries({ queryKey: ["content-farm"] });
+      })
+      .finally(() => setSavingId(null));
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!username.trim()) return;
@@ -212,7 +272,7 @@ export default function ConnectionsPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold tracking-tight">Connections</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Connect social accounts and websites. Data refreshes automatically every 30 minutes.
+          Connect social accounts and websites. Edit metrics manually or let the auto-refresh engine pull live data.
         </p>
       </div>
 
@@ -259,7 +319,7 @@ export default function ConnectionsPage() {
       {isLoading ? (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="rounded-xl border border-border bg-card h-48 animate-skeleton" />
+            <div key={i} className="rounded-xl border border-border bg-card h-56 animate-skeleton" />
           ))}
         </div>
       ) : connections.length === 0 ? (
@@ -275,8 +335,10 @@ export default function ConnectionsPage() {
               conn={conn}
               onRefresh={() => handleRefresh(conn.id)}
               onDelete={() => handleDelete(conn.id)}
+              onSave={(f, e) => handleSave(conn.id, f, e)}
               isRefreshing={refreshingId === conn.id}
               isDeleting={deletingId === conn.id}
+              isSaving={savingId === conn.id}
             />
           ))}
         </div>

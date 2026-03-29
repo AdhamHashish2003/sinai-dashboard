@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
 import Link from "next/link";
@@ -21,6 +22,8 @@ const NAV_LINKS = [
 export function DashboardNav({ user }: NavProps) {
   const pathname = usePathname() ?? "";
   const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   return (
     <header className="border-b border-border bg-card px-6 py-3 flex items-center justify-between">
@@ -56,13 +59,17 @@ export function DashboardNav({ user }: NavProps) {
       </div>
 
       <div className="flex items-center gap-3">
-        <button
-          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-          className="rounded-md p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-          aria-label="Toggle theme"
-        >
-          {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
-        </button>
+        {mounted ? (
+          <button
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            className="rounded-md p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+            aria-label="Toggle theme"
+          >
+            {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
+          </button>
+        ) : (
+          <div className="h-[30px] w-[30px]" />
+        )}
 
         {user?.image && (
           <Image

@@ -41,7 +41,7 @@ export function SocialGrowthWidget() {
 
       <div className="mb-3 flex flex-wrap gap-2">
         {accounts.map((a) => (
-          <div key={a.handle} className="flex items-center gap-1.5 rounded-full border border-border px-2 py-0.5 text-xs">
+          <div key={`${a.handle}-${a.platform}`} className="flex items-center gap-1.5 rounded-full border border-border px-2 py-0.5 text-xs">
             <span className="h-2 w-2 rounded-full" style={{ background: PLATFORM_COLORS[a.platform] ?? "#6366f1" }} />
             <span className="text-muted-foreground">{a.handle}</span>
             <span className="font-medium">{(a.followers / 1000).toFixed(1)}k</span>

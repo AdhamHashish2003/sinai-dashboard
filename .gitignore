@@ -47,3 +47,12 @@ postgres-data/
 
 # promptforge
 .promptforge_state.md
+
+# shopify token
+.shopify-token
+
+# claude code worktrees
+.claude/worktrees/
+
+# scratch files
+enhanced_prompt.txt

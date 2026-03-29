@@ -9,81 +9,6 @@ const PRODUCTS = [
   { name: "AutoMail AI", slug: "automail-ai", baseMrrCents: 1_200_000, baseUsers: 290, growth: 0.04 },
 ];
 
-const SOCIAL_ACCOUNTS = [
-  { platform: "twitter", handle: "@sinaihq", baseFollowers: 45_000, dailyGrowth: 100 },
-  { platform: "instagram", handle: "@sinaihq", baseFollowers: 28_000, dailyGrowth: 200 },
-  { platform: "youtube", handle: "SinaiHQ", baseFollowers: 15_000, dailyGrowth: 50 },
-  { platform: "tiktok", handle: "@sinaicreates", baseFollowers: 85_000, dailyGrowth: 500 },
-  { platform: "linkedin", handle: "sinai-hq", baseFollowers: 12_000, dailyGrowth: 30 },
-];
-
-// Content farm accounts
-const CONTENT_FARM_ACCOUNTS = [
-  {
-    platform: "instagram",
-    handle: "@imperiumstoicc",
-    baseFollowers: 320_000,
-    dailyGrowth: 1_200,
-    bio: "Stoic philosophy for the modern man",
-    avatarSeed: "imperiumstoicc-ig",
-  },
-  {
-    platform: "tiktok",
-    handle: "@imperiumstoicc",
-    baseFollowers: 540_000,
-    dailyGrowth: 3_500,
-    bio: "Stoic philosophy for the modern man",
-    avatarSeed: "imperiumstoicc-tt",
-  },
-  {
-    platform: "instagram",
-    handle: "@ummaharchives",
-    baseFollowers: 185_000,
-    dailyGrowth: 900,
-    bio: "Preserving Islamic history & heritage",
-    avatarSeed: "ummaharchives-ig",
-  },
-  {
-    platform: "tiktok",
-    handle: "@ummaharchives",
-    baseFollowers: 410_000,
-    dailyGrowth: 2_800,
-    bio: "Preserving Islamic history & heritage",
-    avatarSeed: "ummaharchives-tt",
-  },
-  {
-    platform: "instagram",
-    handle: "@undercurrenthq",
-    baseFollowers: 95_000,
-    dailyGrowth: 600,
-    bio: "Counter-culture commentary & analysis",
-    avatarSeed: "undercurrenthq-ig",
-  },
-  {
-    platform: "tiktok",
-    handle: "@undercurrenthq",
-    baseFollowers: 220_000,
-    dailyGrowth: 1_800,
-    bio: "Counter-culture commentary & analysis",
-    avatarSeed: "undercurrenthq-tt",
-  },
-];
-
-const CONTENT_FARM_POST_TITLES = [
-  "The 5 Stoic habits that changed my life",
-  "Marcus Aurelius on dealing with toxic people",
-  "Why discipline beats motivation every time",
-  "The untold story of the House of Wisdom",
-  "Ancient trade routes that shaped the modern world",
-  "What they don't teach you about resilience",
-  "3 rules every man should live by",
-  "The rise and fall of empires — lessons for today",
-  "How to master your emotions in 30 days",
-  "The philosophy behind true strength",
-  "Forgotten scholars who changed science forever",
-  "Why modern men are lost — and how to find your path",
-];
-
 const KEYWORDS = [
   { keyword: "saas analytics dashboard", basePosition: 3 },
   { keyword: "mrr tracking tool", basePosition: 7 },
@@ -95,7 +20,6 @@ const KEYWORDS = [
   { keyword: "keyword rank tracker", basePosition: 8 },
 ];
 
-// Top ecommerce products for analytics
 const TOP_PRODUCTS_DATA = [
   { name: "Sinai Insights Pro", baseRevenueCents: 4_500_00, baseUnits: 45 },
   { name: "TaskFlow Enterprise", baseRevenueCents: 8_200_00, baseUnits: 28 },
@@ -105,6 +29,46 @@ const TOP_PRODUCTS_DATA = [
   { name: "Analytics Add-On", baseRevenueCents: 2_400_00, baseUnits: 95 },
   { name: "Priority Support Plan", baseRevenueCents: 3_500_00, baseUnits: 62 },
   { name: "Custom Integration", baseRevenueCents: 15_000_00, baseUnits: 5 },
+];
+
+// ── REAL accounts only ────────────────────────────────────────────────────────
+const REAL_CONNECTIONS = [
+  {
+    platform: "instagram",
+    username: "undercurrenthq",
+    bio: "The force beneath the surface. Predictions | Analysis | Education",
+    followers: 1232,
+    following: 12,
+    posts: 69,
+    engagementRate: 4.8,
+  },
+  {
+    platform: "instagram",
+    username: "sandsofgiza",
+    bio: "",
+    followers: 5,
+    following: 0,
+    posts: 0,
+    engagementRate: 0,
+  },
+  {
+    platform: "instagram",
+    username: "imperiumstoicc",
+    bio: "",
+    followers: 8,
+    following: 8,
+    posts: 19,
+    engagementRate: 0,
+  },
+  {
+    platform: "instagram",
+    username: "ummaharchives.co",
+    bio: "📖 The history they never taught you 🤲 Daily Quran · Duas · Islamic History",
+    followers: 17,
+    following: 13,
+    posts: 34,
+    engagementRate: 0,
+  },
 ];
 
 function jitter(value: number, pct = 0.05): number {
@@ -151,7 +115,6 @@ async function main() {
 
     await db.saasMetric.createMany({ data: metrics });
 
-    // 5 sample webhook events per product
     await db.webhookEvent.createMany({
       data: [
         { source: p.slug, event: "subscription.created", payload: { amount: 9900 }, productId: product.id, receivedAt: subDays(new Date(), 1) },
@@ -163,118 +126,36 @@ async function main() {
     });
   }
 
-  // ── Original Social Accounts (SaaS dashboard) + 30 days of metrics ──────────
-  for (const acc of SOCIAL_ACCOUNTS) {
-    const account = await db.socialAccount.create({
-      data: { platform: acc.platform, handle: acc.handle },
-    });
-
-    const metrics = Array.from({ length: 30 }, (_, i) => {
-      const daysAgo = 29 - i;
-      const followers = acc.baseFollowers + acc.dailyGrowth * i;
-      return {
-        accountId: account.id,
-        followers: jitter(followers),
-        followersChange: jitter(acc.dailyGrowth),
-        impressions: jitter(followers * 3),
-        engagementRate: parseFloat((Math.random() * 3 + 2).toFixed(2)),
-        recordedAt: startOfDay(subDays(new Date(), daysAgo)),
-      };
-    });
-
-    await db.socialMetric.createMany({ data: metrics });
-
-    // Content posts
-    await db.contentPost.createMany({
-      data: [
-        { accountId: account.id, title: "How we grew to 100k followers", platform: acc.platform, status: "published", publishedAt: subDays(new Date(), 3) },
-        { accountId: account.id, title: "Behind the scenes: building Sinai", platform: acc.platform, status: "published", publishedAt: subDays(new Date(), 7) },
-        { accountId: account.id, title: "Top 10 SaaS metrics you must track", platform: acc.platform, status: "scheduled", scheduledAt: subDays(new Date(), -2) },
-        { accountId: account.id, title: "The truth about churn", platform: acc.platform, status: "scheduled", scheduledAt: subDays(new Date(), -5) },
-        { accountId: account.id, title: "Draft: Q2 retrospective", platform: acc.platform, status: "draft" },
-      ],
-    });
-  }
-
-  // ── Content Farm Accounts + Metrics + Posts with thumbnails ──────────────────
-  let postCounter = 0;
-  for (const acc of CONTENT_FARM_ACCOUNTS) {
-    const account = await db.socialAccount.create({
-      data: {
-        platform: acc.platform,
-        handle: acc.handle,
-        avatarUrl: `https://picsum.photos/seed/${acc.avatarSeed}/96/96`,
-        bio: acc.bio,
-      },
-    });
-
-    const metrics = Array.from({ length: 30 }, (_, i) => {
-      const daysAgo = 29 - i;
-      const followers = acc.baseFollowers + acc.dailyGrowth * i;
-      return {
-        accountId: account.id,
-        followers: jitter(followers),
-        followersChange: jitter(acc.dailyGrowth),
-        impressions: jitter(followers * 4),
-        engagementRate: parseFloat((Math.random() * 4 + 3).toFixed(2)),
-        recordedAt: startOfDay(subDays(new Date(), daysAgo)),
-      };
-    });
-
-    await db.socialMetric.createMany({ data: metrics });
-
-    // 8 posts per content farm account with thumbnails
-    const posts = Array.from({ length: 8 }, (_, i) => {
-      postCounter++;
-      const daysAgo = i * 3 + 1;
-      const titleIdx = (postCounter + i) % CONTENT_FARM_POST_TITLES.length;
-      return {
-        accountId: account.id,
-        title: CONTENT_FARM_POST_TITLES[titleIdx],
-        platform: acc.platform,
-        status: i < 6 ? "published" : "scheduled",
-        thumbnailUrl: `https://picsum.photos/seed/cf-post-${postCounter}-${i}/300/300`,
-        publishedAt: i < 6 ? subDays(new Date(), daysAgo) : null,
-        scheduledAt: i >= 6 ? subDays(new Date(), -(i - 5) * 2) : null,
-      };
-    });
-
-    await db.contentPost.createMany({ data: posts });
-  }
-
-  // ── Connections (Auto-Linking) — seed content farm accounts as connections ──
-  for (const acc of CONTENT_FARM_ACCOUNTS) {
+  // ── Connections — REAL accounts only ────────────────────────────────────────
+  for (const acc of REAL_CONNECTIONS) {
     const conn = await db.connection.create({
       data: {
         platform: acc.platform,
-        username: acc.handle,
+        username: acc.username,
         type: "social",
         status: "active",
-        avatarUrl: `https://picsum.photos/seed/${acc.avatarSeed}/96/96`,
+        dataSource: "manual",
+        avatarUrl: `https://picsum.photos/seed/ig-${acc.username}/96/96`,
         bio: acc.bio,
         lastFetchedAt: new Date(),
       },
     });
 
-    // 30 days of connection metrics
-    const connMetrics = Array.from({ length: 30 }, (_, i) => {
-      const daysAgo = 29 - i;
-      const followers = acc.baseFollowers + acc.dailyGrowth * i;
-      return {
+    // Single metric row with real data
+    await db.connectionMetric.create({
+      data: {
         connectionId: conn.id,
-        date: startOfDay(subDays(new Date(), daysAgo)),
-        followers: jitter(followers),
-        following: jitter(Math.floor(followers * 0.08)),
-        posts: 100 + i,
-        engagementRate: parseFloat((Math.random() * 4 + 3).toFixed(2)),
-        views: jitter(followers * 4),
-        likes: jitter(Math.floor(followers * 0.15)),
-        comments: jitter(Math.floor(followers * 0.02)),
-        shares: jitter(Math.floor(followers * 0.005)),
-      };
+        date: new Date(),
+        followers: acc.followers,
+        following: acc.following,
+        posts: acc.posts,
+        engagementRate: acc.engagementRate,
+        views: 0,
+        likes: 0,
+        comments: 0,
+        shares: 0,
+      },
     });
-
-    await db.connectionMetric.createMany({ data: connMetrics });
   }
 
   // ── Keyword Rankings ─────────────────────────────────────────────────────────
@@ -293,9 +174,7 @@ async function main() {
     const daysAgo = 59 - i;
     const date = startOfDay(subDays(new Date(), daysAgo));
     const dayOfWeek = date.getDay();
-    // Weekends get ~60% traffic, weekdays vary
     const weekendMultiplier = dayOfWeek === 0 || dayOfWeek === 6 ? 0.6 : 1;
-    // Gradual upward trend
     const trendMultiplier = 1 + (i / 60) * 0.3;
     const baseViews = 4500;
     const totalViews = jitter(Math.round(baseViews * weekendMultiplier * trendMultiplier), 0.1);
@@ -376,17 +255,10 @@ async function main() {
   const funnelSnapshots = Array.from({ length: 60 }, (_, i) => {
     const pv = pageViews[i];
     const visitors = pv.uniqueVisitors;
-    // Realistic drop-off: 100% → ~12% → ~6% → ~3%
     const addToCart = jitter(Math.round(visitors * 0.12), 0.08);
     const checkout = jitter(Math.round(visitors * 0.06), 0.08);
     const purchase = jitter(Math.round(visitors * 0.03), 0.08);
-    return {
-      date: pv.date,
-      visitors,
-      addToCart,
-      checkout,
-      purchase,
-    };
+    return { date: pv.date, visitors, addToCart, checkout, purchase };
   });
   await db.funnelSnapshot.createMany({ data: funnelSnapshots });
 

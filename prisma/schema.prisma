@@ -238,6 +238,7 @@ model Connection {
   username               String
   type                   String             // social, web
   status                 String             @default("active") // active, paused, error
+  dataSource             String             @default("manual") // manual, api
   avatarUrl              String?
   bio                    String?
   lastFetchedAt          DateTime?

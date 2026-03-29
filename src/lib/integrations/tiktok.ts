@@ -1,8 +1,11 @@
 /**
- * TikTok API integration stub.
+ * TikTok integration stub.
  *
- * Required env: TIKTOK_CLIENT_KEY, TIKTOK_CLIENT_SECRET
- * Docs: https://developers.tiktok.com/doc/research-api-get-user-info
+ * No free public API available without OAuth app approval.
+ * For now this always returns null — the refresh engine falls back to mock data.
+ *
+ * When TikTok Research API access is granted, implement here using
+ * TIKTOK_CLIENT_KEY + TIKTOK_CLIENT_SECRET.
  */
 
 export interface TikTokProfile {
@@ -16,36 +19,12 @@ export interface TikTokProfile {
   bio: string;
 }
 
-export interface TikTokVideoMetrics {
-  views: number;
-  likes: number;
-  comments: number;
-  shares: number;
-}
-
 /**
  * Fetch TikTok user profile.
- * TODO: Replace mock with real TikTok Research API call.
+ * Returns null — no free API available yet.
  */
-export async function fetchTikTokProfile(username: string): Promise<TikTokProfile> {
-  // TODO: Implement using TIKTOK_CLIENT_KEY + TIKTOK_CLIENT_SECRET
-  return {
-    username,
-    displayName: username,
-    followerCount: 0,
-    followingCount: 0,
-    videoCount: 0,
-    likesCount: 0,
-    avatarUrl: `https://picsum.photos/seed/tt-${username}/96/96`,
-    bio: "",
-  };
-}
-
-/**
- * Fetch recent video metrics.
- * TODO: Replace with real API call.
- */
-export async function fetchTikTokVideoMetrics(_username: string): Promise<TikTokVideoMetrics> {
-  // TODO: Implement real API call
-  return { views: 0, likes: 0, comments: 0, shares: 0 };
+export async function fetchTikTokProfile(_username: string): Promise<TikTokProfile | null> {
+  // TikTok Research API requires approved application
+  // When available, implement here
+  return null;
 }

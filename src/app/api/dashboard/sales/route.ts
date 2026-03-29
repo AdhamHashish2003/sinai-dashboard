@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { subDays, startOfDay, format } from "date-fns";
+import { fetchShopifySales } from "@/lib/integrations/shopify";
 
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
@@ -10,6 +11,30 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const days = Math.min(Number(searchParams.get("period")) || 30, 90);
+
+  // Try Shopify first — returns null if not configured
+  const shopifyData = await fetchShopifySales(days);
+  if (shopifyData) {
+    // Compare to previous period using Shopify data
+    const prevShopify = await fetchShopifySales(days * 2);
+    const prevRevenue = prevShopify
+      ? prevShopify.totalRevenueCents - shopifyData.totalRevenueCents
+      : 0;
+    const revenueChangePct = prevRevenue > 0
+      ? parseFloat((((shopifyData.totalRevenueCents - prevRevenue) / prevRevenue) * 100).toFixed(1))
+      : 0;
+
+    return NextResponse.json({
+      chartData: shopifyData.chartData,
+      totalRevenueCents: shopifyData.totalRevenueCents,
+      totalOrders: shopifyData.totalOrders,
+      aovCents: shopifyData.aovCents,
+      revenueChangePct,
+      source: "shopify",
+    });
+  }
+
+  // Fallback: seeded DB data
   const since = startOfDay(subDays(new Date(), days - 1));
 
   const rows = await db.salesOrder.findMany({
@@ -36,5 +61,12 @@ export async function GET(request: Request) {
     ? parseFloat((((totalRevenueCents - prevRevenue) / prevRevenue) * 100).toFixed(1))
     : 0;
 
-  return NextResponse.json({ chartData, totalRevenueCents, totalOrders, aovCents, revenueChangePct });
+  return NextResponse.json({
+    chartData,
+    totalRevenueCents,
+    totalOrders,
+    aovCents,
+    revenueChangePct,
+    source: "seed",
+  });
 }

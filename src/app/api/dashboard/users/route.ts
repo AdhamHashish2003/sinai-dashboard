@@ -17,21 +17,28 @@ export async function GET() {
 
   const data = await Promise.all(
     products.map(async (p) => {
-      const [today_metrics, yesterday_metrics] = await Promise.all([
-        db.saasMetric.findFirst({
-          where: { productId: p.id, recordedAt: { gte: today } },
-          select: { activeUsers: true },
+      // Try today first, fall back to most recent metric
+      let latest = await db.saasMetric.findFirst({
+        where: { productId: p.id, recordedAt: { gte: today } },
+        select: { activeUsers: true, recordedAt: true },
+        orderBy: { recordedAt: "desc" },
+      });
+      if (!latest) {
+        latest = await db.saasMetric.findFirst({
+          where: { productId: p.id },
+          select: { activeUsers: true, recordedAt: true },
           orderBy: { recordedAt: "desc" },
-        }),
-        db.saasMetric.findFirst({
-          where: { productId: p.id, recordedAt: { gte: yesterday, lt: today } },
-          select: { activeUsers: true },
-          orderBy: { recordedAt: "desc" },
-        }),
-      ]);
+        });
+      }
 
-      const activeUsers = today_metrics?.activeUsers ?? 0;
-      const prevActiveUsers = yesterday_metrics?.activeUsers ?? 0;
+      const prev = await db.saasMetric.findFirst({
+        where: { productId: p.id, recordedAt: { gte: yesterday, lt: today } },
+        select: { activeUsers: true },
+        orderBy: { recordedAt: "desc" },
+      });
+
+      const activeUsers = latest?.activeUsers ?? 0;
+      const prevActiveUsers = prev?.activeUsers ?? 0;
       const trend = prevActiveUsers > 0 ? ((activeUsers - prevActiveUsers) / prevActiveUsers) * 100 : 0;
 
       return { productName: p.name, activeUsers, prevActiveUsers, trend };
