@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import {
   BarChart3,
   TrendingUp,
@@ -9,7 +8,6 @@ import {
   Zap,
   Link2,
   Moon,
-  ArrowRight,
   Layers,
 } from "lucide-react";
 import { ParticleBackground } from "./particle-background";

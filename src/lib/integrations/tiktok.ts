@@ -23,6 +23,7 @@ export interface TikTokProfile {
  * Fetch TikTok user profile.
  * Returns null — no free API available yet.
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function fetchTikTokProfile(_username: string): Promise<TikTokProfile | null> {
   // TikTok Research API requires approved application
   // When available, implement here

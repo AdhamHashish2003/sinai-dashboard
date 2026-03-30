@@ -22,6 +22,7 @@ export interface GA4TrafficSource {
  * TODO: Replace with real GA4 Data API call.
  * Method: properties/{propertyId}:runReport
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function fetchPageViews(_days: number): Promise<GA4PageViewsReport[]> {
   // TODO: Implement using GA4_PROPERTY_ID + service account credentials
   return [];
@@ -31,6 +32,7 @@ export async function fetchPageViews(_days: number): Promise<GA4PageViewsReport[
  * Fetch traffic source breakdown.
  * TODO: Replace with real API call.
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function fetchTrafficSources(_days: number): Promise<GA4TrafficSource[]> {
   // TODO: Implement real API call
   return [];

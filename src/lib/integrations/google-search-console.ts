@@ -26,6 +26,7 @@ export interface GSCSiteSummary {
  * TODO: Replace with real GSC API call.
  * Endpoint: POST /webmasters/v3/sites/{siteUrl}/searchAnalytics/query
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function fetchKeywordRankings(_days: number): Promise<GSCKeywordData[]> {
   // TODO: Implement using GSC_SITE_URL + service account credentials
   return [];
@@ -35,6 +36,7 @@ export async function fetchKeywordRankings(_days: number): Promise<GSCKeywordDat
  * Fetch site-level search performance summary.
  * TODO: Replace with real API call.
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function fetchSiteSummary(_days: number): Promise<GSCSiteSummary> {
   // TODO: Implement real API call
   return { totalClicks: 0, totalImpressions: 0, averagePosition: 0, averageCtr: 0 };
