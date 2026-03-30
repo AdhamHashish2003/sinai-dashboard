@@ -3,5 +3,4 @@ builder = "nixpacks"
 
 [deploy]
 startCommand = "npx prisma migrate deploy && npm start"
-healthcheckPath = "/api/auth/session"
 restartPolicyType = "on_failure"
