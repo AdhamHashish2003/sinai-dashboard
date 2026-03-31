@@ -7,7 +7,7 @@ import {
   Clapperboard,
   Zap,
   Link2,
-  Moon,
+  GripVertical,
   Layers,
 } from "lucide-react";
 import { ParticleBackground } from "./particle-background";
@@ -16,47 +16,47 @@ import { SignInButton } from "@/components/auth/sign-in-button";
 const FEATURES = [
   {
     icon: BarChart3,
-    title: "SaaS Metrics",
-    desc: "MRR, churn, active users — all your products in one view.",
+    title: "MRR Tracking",
+    desc: "Monthly recurring revenue, churn, and active users across all your products.",
     delay: 0,
   },
   {
     icon: TrendingUp,
-    title: "Analytics",
-    desc: "Page views, traffic sources, SEO, sales, and conversion funnels.",
-    delay: 100,
+    title: "Social Growth",
+    desc: "Auto-fetch followers, engagement, and posts from Instagram, TikTok, YouTube.",
+    delay: 80,
   },
   {
     icon: Clapperboard,
     title: "Content Farm",
-    desc: "Every Instagram and TikTok account with engagement metrics.",
-    delay: 200,
+    desc: "Every connected account with thumbnails, post history, and growth metrics.",
+    delay: 160,
   },
   {
     icon: Zap,
-    title: "Real-Time Updates",
-    desc: "WebSocket-powered live data with 30s polling fallback.",
-    delay: 300,
+    title: "Live Webhooks",
+    desc: "Real-time events from Stripe, Shopify, and custom sources via WebSocket.",
+    delay: 240,
+  },
+  {
+    icon: GripVertical,
+    title: "Drag & Drop",
+    desc: "Rearrange your dashboard widgets into the perfect layout for your workflow.",
+    delay: 320,
   },
   {
     icon: Link2,
-    title: "Auto-Linking",
-    desc: "Connect any social account or website — data flows automatically.",
+    title: "SEO Rankings",
+    desc: "Track keyword positions, domain authority, and indexed pages over time.",
     delay: 400,
-  },
-  {
-    icon: Moon,
-    title: "Dark Mode",
-    desc: "Beautiful dark and light themes with one-click toggle.",
-    delay: 500,
   },
 ];
 
 const STATS = [
   { label: "Widgets", value: 12 },
   { label: "Platforms", value: 6 },
-  { label: "Min Auto-Refresh", value: 30 },
-  { label: "Real-time WS", value: 1 },
+  { label: "Auto-Refresh (s)", value: 30 },
+  { label: "Real-Time WS", value: 1 },
 ];
 
 function AnimatedCounter({ target, suffix = "" }: { target: number; suffix?: string }) {
@@ -84,32 +84,53 @@ function AnimatedCounter({ target, suffix = "" }: { target: number; suffix?: str
 
 export function LandingClient() {
   return (
-    <div className="relative min-h-screen bg-[#080b14] text-white overflow-hidden">
+    <div className="relative min-h-screen bg-[#060609] text-white overflow-hidden">
       <ParticleBackground />
 
+      {/* Grid overlay */}
+      <div
+        className="fixed inset-0 pointer-events-none opacity-100"
+        style={{
+          backgroundImage:
+            "linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px)",
+          backgroundSize: "72px 72px",
+        }}
+      />
+
       {/* Ambient glows */}
-      <div className="fixed top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] rounded-full bg-emerald-600/[0.06] blur-[150px] pointer-events-none" />
-      <div className="fixed bottom-0 right-1/4 w-[500px] h-[500px] rounded-full bg-cyan-600/[0.04] blur-[120px] pointer-events-none" />
+      <div className="fixed top-[15%] left-1/2 -translate-x-1/2 -translate-y-1/2 w-[900px] h-[900px] rounded-full bg-emerald-500/[0.06] blur-[200px] pointer-events-none" />
+      <div className="fixed bottom-[-10%] right-[20%] w-[600px] h-[600px] rounded-full bg-indigo-500/[0.04] blur-[160px] pointer-events-none" />
+      <div className="fixed top-[60%] left-[10%] w-[400px] h-[400px] rounded-full bg-orange-500/[0.03] blur-[120px] pointer-events-none" />
 
       <div className="relative z-10 mx-auto max-w-5xl px-6 py-16">
         {/* Hero */}
-        <div className="text-center pt-16 pb-20 space-y-8 animate-fade-in-up">
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-4 py-1.5 text-xs text-zinc-400 backdrop-blur-md">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+        <div className="text-center pt-20 pb-24 space-y-8 animate-fade-in-up">
+          {/* Badge */}
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.03] px-4 py-1.5 text-xs text-zinc-400 backdrop-blur-md">
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+            </span>
             Dashboard v2 — Live
           </div>
 
-          <h1 className="text-6xl sm:text-7xl lg:text-8xl font-black tracking-tighter">
-            <span className="bg-gradient-to-r from-white via-zinc-200 to-zinc-500 bg-clip-text text-transparent">
-              Sinai
-            </span>
-          </h1>
+          {/* Title */}
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="w-[500px] h-[250px] bg-white/[0.03] rounded-full blur-[120px]" />
+            </div>
+            <h1 className="relative text-7xl sm:text-8xl lg:text-[10rem] font-black tracking-tighter leading-none">
+              <span className="bg-gradient-to-b from-white via-white/90 to-zinc-600 bg-clip-text text-transparent">
+                Sinai
+              </span>
+            </h1>
+          </div>
 
-          <p className="text-lg sm:text-xl text-zinc-400 max-w-lg mx-auto leading-relaxed">
+          <p className="text-lg sm:text-xl text-zinc-400 max-w-md mx-auto leading-relaxed">
             Your command center for content, analytics, and growth.
           </p>
 
-          <div className="flex items-center justify-center gap-4 pt-2">
+          <div className="flex items-center justify-center pt-4">
             <SignInButton />
           </div>
         </div>
@@ -119,15 +140,15 @@ export function LandingClient() {
           {FEATURES.map((f) => (
             <div
               key={f.title}
-              className="group relative rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5 backdrop-blur-md transition-all duration-300 hover:border-white/[0.12] hover:bg-white/[0.04] animate-fade-in-up"
+              className="group relative rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5 backdrop-blur-md transition-all duration-300 hover:border-white/[0.15] hover:bg-white/[0.04] hover:-translate-y-0.5 animate-fade-in-up"
               style={{ animationDelay: `${f.delay + 600}ms` }}
             >
-              <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-emerald-500/[0.03] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/[0.03] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
               <div className="relative">
-                <div className="mb-3 inline-flex rounded-lg border border-white/[0.08] bg-white/[0.04] p-2">
-                  <f.icon size={18} className="text-emerald-400" />
+                <div className="mb-3 inline-flex rounded-lg border border-white/[0.08] bg-white/[0.04] p-2.5 transition-colors group-hover:border-emerald-500/20 group-hover:bg-emerald-500/[0.06]">
+                  <f.icon size={18} className="text-zinc-400 transition-colors group-hover:text-emerald-400" />
                 </div>
-                <h3 className="text-sm font-semibold text-zinc-200 mb-1">{f.title}</h3>
+                <h3 className="text-sm font-semibold text-zinc-200 mb-1.5">{f.title}</h3>
                 <p className="text-xs text-zinc-500 leading-relaxed">{f.desc}</p>
               </div>
             </div>
@@ -142,11 +163,8 @@ export function LandingClient() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 text-center">
             {STATS.map((s) => (
               <div key={s.label}>
-                <div className="text-3xl font-bold text-white">
-                  <AnimatedCounter
-                    target={s.value}
-                    suffix={s.label === "Real-time WS" ? "" : ""}
-                  />
+                <div className="text-3xl font-bold text-white font-mono">
+                  <AnimatedCounter target={s.value} />
                 </div>
                 <div className="text-xs text-zinc-500 mt-1">{s.label}</div>
               </div>
@@ -159,11 +177,11 @@ export function LandingClient() {
           className="text-center pb-12 space-y-3 animate-fade-in-up"
           style={{ animationDelay: "1400ms" }}
         >
-          <div className="flex items-center justify-center gap-2 text-xs text-zinc-500">
+          <div className="flex items-center justify-center gap-2 text-xs text-zinc-600">
             <Layers size={12} />
             <span>Next.js 14 &middot; Prisma &middot; Postgres &middot; Recharts &middot; Tailwind &middot; Socket.IO</span>
           </div>
-          <p className="text-xs text-zinc-600">
+          <p className="text-[11px] text-zinc-700">
             Built by Adham
           </p>
         </footer>

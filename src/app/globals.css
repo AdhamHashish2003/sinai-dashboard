@@ -3,12 +3,85 @@
 @tailwind utilities;
 
 @layer base {
-  * {
-    @apply border-[#222222];
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 240 5.9% 10%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 240 5.9% 10%;
+    --radius: 0.5rem;
+
+    --chart-grid: 240 5.9% 90%;
+    --chart-axis-text: 240 3.8% 46.1%;
+    --chart-tooltip-bg: 0 0% 100%;
+    --chart-tooltip-border: 240 5.9% 90%;
   }
-  body {
-    @apply bg-black text-white;
+
+  .dark {
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 5.9% 10%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 240 4.9% 83.9%;
+
+    --chart-grid: 240 3.7% 15.9%;
+    --chart-axis-text: 240 5% 64.9%;
+    --chart-tooltip-bg: 240 10% 3.9%;
+    --chart-tooltip-border: 240 3.7% 15.9%;
   }
+}
+
+/* Animations */
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes skeleton {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.8; }
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.6s ease-out both;
+}
+
+.animate-skeleton {
+  animation: skeleton 1.5s ease-in-out infinite;
 }
 
 /* Scrollbar */
@@ -16,17 +89,9 @@
   width: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #000;
+  background: hsl(var(--background));
 }
 ::-webkit-scrollbar-thumb {
-  background: #333;
+  background: hsl(var(--muted));
   border-radius: 3px;
-}
-
-/* Progress bar fill animation */
-@keyframes progress-fill {
-  from { width: 0%; }
-}
-.animate-progress {
-  animation: progress-fill 0.4s ease-out;
 }

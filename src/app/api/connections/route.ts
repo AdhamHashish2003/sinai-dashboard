@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { z } from "zod";
+import { fetchConnectionData } from "@/lib/refresh-engine";
 
 const CreateConnectionSchema = z.object({
   platform: z.enum(["instagram", "tiktok", "youtube", "twitter", "linkedin"]),
@@ -85,24 +86,54 @@ export async function POST(request: Request) {
       },
     });
 
-    // Seed initial zero metric — user clicks Refresh to get real data
-    await db.connectionMetric.create({
-      data: {
-        connectionId: connection.id,
-        date: new Date(),
-        followers: 0,
-        following: 0,
-        posts: 0,
-        engagementRate: 0,
-        views: 0,
-        likes: 0,
-        comments: 0,
-        shares: 0,
-      },
+    // Auto-fetch real data from platform API
+    let fetched = false;
+    let warning: string | undefined;
+    try {
+      await fetchConnectionData(connection);
+      fetched = true;
+    } catch {
+      // API unavailable — seed with zero metric
+      await db.connectionMetric.create({
+        data: {
+          connectionId: connection.id,
+          date: new Date(),
+          followers: 0,
+          following: 0,
+          posts: 0,
+          engagementRate: 0,
+          views: 0,
+          likes: 0,
+          comments: 0,
+          shares: 0,
+        },
+      });
+      warning = "API limit reached — click Refresh later";
+    }
+
+    // Return latest state
+    const updated = await db.connection.findUnique({
+      where: { id: connection.id },
+      include: { metrics: { orderBy: { date: "desc" }, take: 1 } },
     });
+    const latest = updated?.metrics[0];
 
     return NextResponse.json(
-      { connection: { id: connection.id, platform, username, status: "active", dataSource: "manual" } },
+      {
+        connection: {
+          id: connection.id,
+          platform,
+          username,
+          status: updated?.status ?? "active",
+          dataSource: updated?.dataSource ?? "manual",
+          avatarUrl: updated?.avatarUrl,
+          bio: updated?.bio,
+          followers: latest?.followers ?? 0,
+          engagementRate: latest?.engagementRate ?? 0,
+        },
+        fetched,
+        ...(warning ? { warning } : {}),
+      },
       { status: 201 }
     );
   } catch (err) {

@@ -7,9 +7,9 @@ import {
   Plus,
   RefreshCw,
   Trash2,
-  Save,
   Instagram,
   Youtube,
+  AlertCircle,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -82,33 +82,16 @@ function ConnectionCard({
   conn,
   onRefresh,
   onDelete,
-  onSave,
   isRefreshing,
   isDeleting,
-  isSaving,
 }: {
   conn: ConnectionData;
   onRefresh: () => void;
   onDelete: () => void;
-  onSave: (followers: number, engagementRate: number) => void;
   isRefreshing: boolean;
   isDeleting: boolean;
-  isSaving: boolean;
 }) {
-  const [editFollowers, setEditFollowers] = useState(String(conn.followers));
-  const [editEngagement, setEditEngagement] = useState(String(conn.engagementRate));
   const color = PLATFORM_COLORS[conn.platform] ?? "#6366f1";
-
-  const followersChanged = Number(editFollowers) !== conn.followers;
-  const engagementChanged = Number(editEngagement) !== conn.engagementRate;
-  const hasChanges = followersChanged || engagementChanged;
-
-  function handleSave() {
-    const f = parseInt(editFollowers, 10);
-    const e = parseFloat(editEngagement);
-    if (isNaN(f) || f < 0 || isNaN(e) || e < 0 || e > 100) return;
-    onSave(f, e);
-  }
 
   return (
     <div className="rounded-xl border border-border bg-card text-card-foreground shadow-sm p-4 transition-shadow duration-200 hover:shadow-md">
@@ -127,29 +110,15 @@ function ConnectionCard({
         </div>
       </div>
 
-      {/* Editable metrics */}
+      {/* Read-only metrics */}
       <div className="grid grid-cols-2 gap-3 mb-3">
         <div>
-          <label className="block text-[10px] text-muted-foreground mb-1">Followers</label>
-          <input
-            type="number"
-            min="0"
-            value={editFollowers}
-            onChange={(e) => setEditFollowers(e.target.value)}
-            className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-xs font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
-          />
+          <span className="block text-[10px] text-muted-foreground mb-0.5">Followers</span>
+          <span className="text-lg font-bold">{conn.followers.toLocaleString()}</span>
         </div>
         <div>
-          <label className="block text-[10px] text-muted-foreground mb-1">Engagement %</label>
-          <input
-            type="number"
-            min="0"
-            max="100"
-            step="0.01"
-            value={editEngagement}
-            onChange={(e) => setEditEngagement(e.target.value)}
-            className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-xs font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
-          />
+          <span className="block text-[10px] text-muted-foreground mb-0.5">Engagement</span>
+          <span className="text-lg font-bold">{conn.engagementRate}%</span>
         </div>
       </div>
 
@@ -160,23 +129,13 @@ function ConnectionCard({
       )}
 
       <div className="flex items-center gap-2">
-        {hasChanges && (
-          <button
-            onClick={handleSave}
-            disabled={isSaving}
-            className="flex-1 flex items-center justify-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
-          >
-            <Save size={12} />
-            {isSaving ? "Saving..." : "Save"}
-          </button>
-        )}
         <button
           onClick={onRefresh}
           disabled={isRefreshing}
-          className={`${hasChanges ? "" : "flex-1 "}flex items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors disabled:opacity-50`}
+          className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors disabled:opacity-50"
         >
           <RefreshCw size={12} className={isRefreshing ? "animate-spin" : ""} />
-          {isRefreshing ? "..." : "Refresh"}
+          {isRefreshing ? "Fetching..." : "Refresh"}
         </button>
         <button
           onClick={onDelete}
@@ -196,7 +155,7 @@ export default function ConnectionsPage() {
   const [platform, setPlatform] = useState<string>("instagram");
   const [refreshingId, setRefreshingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [savingId, setSavingId] = useState<string | null>(null);
+  const [createWarning, setCreateWarning] = useState("");
 
   const { data, isLoading } = useQuery({
     queryKey: ["connections"],
@@ -218,10 +177,16 @@ export default function ConnectionsPage() {
         }
         return r.json();
       }),
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["connections"] });
       queryClient.invalidateQueries({ queryKey: ["content-farm"] });
       setUsername("");
+      if (data.warning) {
+        setCreateWarning(data.warning);
+        setTimeout(() => setCreateWarning(""), 8000);
+      } else {
+        setCreateWarning("");
+      }
     },
   });
 
@@ -245,34 +210,22 @@ export default function ConnectionsPage() {
       .finally(() => setDeletingId(null));
   }
 
-  function handleSave(id: string, followers: number, engagementRate: number) {
-    setSavingId(id);
-    fetch(`/api/connections/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ followers, engagementRate }),
-    })
-      .then(() => {
-        queryClient.invalidateQueries({ queryKey: ["connections"] });
-        queryClient.invalidateQueries({ queryKey: ["content-farm"] });
-      })
-      .finally(() => setSavingId(null));
-  }
-
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!username.trim()) return;
+    setCreateWarning("");
     createMutation.mutate({ platform, username: username.trim(), type: "social" });
   }
 
   const connections = data?.connections ?? [];
+  const fetchingUsername = createMutation.isPending ? username.trim() : "";
 
   return (
     <div>
       <div className="mb-6">
         <h1 className="text-2xl font-bold tracking-tight">Connections</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Connect social accounts and websites. Edit metrics manually or let the auto-refresh engine pull live data.
+          Add a username and we&apos;ll auto-fetch followers, bio, and engagement from the platform API.
         </p>
       </div>
 
@@ -285,7 +238,7 @@ export default function ConnectionsPage() {
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="@imperiumstoicc"
+              placeholder="undercurrenthq"
               className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
             />
           </div>
@@ -307,11 +260,17 @@ export default function ConnectionsPage() {
             className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50 shrink-0"
           >
             <Plus size={14} />
-            {createMutation.isPending ? "Adding..." : "Add Connection"}
+            {fetchingUsername ? `Fetching @${fetchingUsername}...` : "Add Connection"}
           </button>
         </div>
         {createMutation.isError && (
           <p className="text-xs text-red-400 mt-2">{createMutation.error.message}</p>
+        )}
+        {createWarning && (
+          <p className="flex items-center gap-1.5 text-xs text-yellow-400 mt-2">
+            <AlertCircle size={12} />
+            {createWarning}
+          </p>
         )}
       </form>
 
@@ -335,10 +294,8 @@ export default function ConnectionsPage() {
               conn={conn}
               onRefresh={() => handleRefresh(conn.id)}
               onDelete={() => handleDelete(conn.id)}
-              onSave={(f, e) => handleSave(conn.id, f, e)}
               isRefreshing={refreshingId === conn.id}
               isDeleting={deletingId === conn.id}
-              isSaving={savingId === conn.id}
             />
           ))}
         </div>
