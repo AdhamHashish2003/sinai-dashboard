@@ -14,8 +14,8 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Clip Engine",
-  description: "Generate viral clips from long-form video",
+  title: "Sinai Dashboard",
+  description: "Unified SaaS analytics and social media tracking platform",
 };
 
 export default function RootLayout({
