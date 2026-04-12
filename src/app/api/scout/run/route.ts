@@ -15,34 +15,21 @@ const RunSchema = z.object({
 });
 
 const CITIES = [
-  "los-angeles-ca",
-  "san-jose-ca",
-  "san-francisco-ca",
-  "san-diego-ca",
-  "sacramento-ca",
-  "oakland-ca",
-  "anaheim-ca",
-  "irvine-ca",
+  "Los Angeles",
+  "San Jose",
+  "San Francisco",
+  "San Diego",
+  "Sacramento",
+  "Oakland",
+  "Anaheim",
+  "Irvine",
+  "Fremont",
+  "Long Beach",
 ];
 
-// Plain display names aligned 1:1 with CITIES above, used for Google Places queries.
-const CITY_DISPLAY: Record<string, string> = {
-  "los-angeles-ca": "Los Angeles",
-  "san-jose-ca": "San Jose",
-  "san-francisco-ca": "San Francisco",
-  "san-diego-ca": "San Diego",
-  "sacramento-ca": "Sacramento",
-  "oakland-ca": "Oakland",
-  "anaheim-ca": "Anaheim",
-  "irvine-ca": "Irvine",
-};
+const QUERIES = ["ADU builder", "general contractor"];
 
-const SEARCHES = ["general-contractors", "adu-construction"];
-
-const GOOGLE_PLACES_PER_CITY = 10;
-
-const USER_AGENT =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+const RESULTS_PER_SEARCH = 10;
 
 interface ScrapedLead {
   name: string;
@@ -53,56 +40,16 @@ interface ScrapedLead {
   source: string;
   sourceUrl: string;
   searchQuery: string;
-}
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-async function scrapeYellowPages(
-  city: string,
-  query: string
-): Promise<ScrapedLead[]> {
-  const url = `https://www.yellowpages.com/${city}/${query}`;
-  const res = await fetch(url, {
-    headers: { "User-Agent": USER_AGENT },
-  });
-  if (!res.ok) return [];
-  const html = await res.text();
-
-  const names = Array.from(
-    html.matchAll(/class="business-name"[^>]*>.*?<[^>]*>([^<]+)</g),
-    (m) => m[1].trim()
-  );
-  const phones = Array.from(
-    html.matchAll(/class="phones[^"]*"[^>]*>([^<]+)</g),
-    (m) => m[1].trim()
-  );
-  const addresses = Array.from(
-    html.matchAll(/class="street-address"[^>]*>([^<]+)</g),
-    (m) => m[1].trim()
-  );
-  const localities = Array.from(
-    html.matchAll(/class="locality"[^>]*>([^<]+)</g),
-    (m) => m[1].trim()
-  );
-
-  return names.map((name, i) => ({
-    name,
-    phone: phones[i] || "",
-    address: addresses[i] || "",
-    city: localities[i]?.replace(/,.*/, "").trim() || city.split("-")[0],
-    state: "CA",
-    source: "yellowpages",
-    sourceUrl: `yellowpages://${city}/${query}/${name
-      .toLowerCase()
-      .replace(/\s+/g, "-")}`,
-    searchQuery: query,
-  }));
+  website: string;
+  rating: number;
+  businessStatus: string;
 }
 
 interface GooglePlace {
   place_id: string;
   name: string;
   formatted_address?: string;
+  rating?: number;
 }
 
 interface GooglePlacesResponse {
@@ -111,68 +58,86 @@ interface GooglePlacesResponse {
   error_message?: string;
 }
 
-interface GooglePlaceDetailsResponse {
-  status: string;
-  result?: { formatted_phone_number?: string };
+interface GooglePlaceDetails {
+  name?: string;
+  formatted_address?: string;
+  formatted_phone_number?: string;
+  website?: string;
+  rating?: number;
+  business_status?: string;
 }
 
-async function searchGooglePlaces(
-  citySlug: string,
-  apiKey: string
+interface GooglePlaceDetailsResponse {
+  status: string;
+  result?: GooglePlaceDetails;
+  error_message?: string;
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+async function scrapeGoogleMaps(
+  city: string,
+  state: string,
+  query: string
 ): Promise<ScrapedLead[]> {
-  const cityName = CITY_DISPLAY[citySlug] ?? citySlug;
-  const query = `ADU builder ${cityName} CA`;
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+  if (!apiKey) throw new Error("GOOGLE_MAPS_API_KEY not set");
+
+  const textQuery = `${query} ${city} ${state}`;
   const searchUrl =
     `https://maps.googleapis.com/maps/api/place/textsearch/json` +
-    `?query=${encodeURIComponent(query)}&key=${encodeURIComponent(apiKey)}`;
+    `?query=${encodeURIComponent(textQuery)}&key=${encodeURIComponent(apiKey)}`;
 
-  const res = await fetch(searchUrl);
-  if (!res.ok) return [];
-  const data = (await res.json()) as GooglePlacesResponse;
-  if (data.status !== "OK" && data.status !== "ZERO_RESULTS") {
+  const searchRes = await fetch(searchUrl);
+  const searchData = (await searchRes.json()) as GooglePlacesResponse;
+
+  if (searchData.status !== "OK") {
     console.warn(
-      `[scout/run] google places status=${data.status} city=${citySlug}`,
-      data.error_message ?? ""
+      `[scout] Google Maps status: ${searchData.status} for ${city} (${query})`,
+      searchData.error_message ?? ""
     );
     return [];
   }
-  const places = (data.results ?? []).slice(0, GOOGLE_PLACES_PER_CITY);
 
   const leads: ScrapedLead[] = [];
+  const places = (searchData.results ?? []).slice(0, RESULTS_PER_SEARCH);
+
   for (const place of places) {
-    // Place Details call — required for phone number (not in Text Search payload).
-    let phone = "";
+    const detailsUrl =
+      `https://maps.googleapis.com/maps/api/place/details/json` +
+      `?place_id=${encodeURIComponent(place.place_id)}` +
+      `&fields=name,formatted_address,formatted_phone_number,website,rating,business_status` +
+      `&key=${encodeURIComponent(apiKey)}`;
+
+    let detail: GooglePlaceDetails = {};
     try {
-      const detailsUrl =
-        `https://maps.googleapis.com/maps/api/place/details/json` +
-        `?place_id=${encodeURIComponent(place.place_id)}` +
-        `&fields=formatted_phone_number` +
-        `&key=${encodeURIComponent(apiKey)}`;
-      const dres = await fetch(detailsUrl);
-      if (dres.ok) {
-        const ddata = (await dres.json()) as GooglePlaceDetailsResponse;
-        phone = ddata.result?.formatted_phone_number ?? "";
-      }
+      const detailsRes = await fetch(detailsUrl);
+      const detailsData = (await detailsRes.json()) as GooglePlaceDetailsResponse;
+      detail = detailsData.result ?? {};
     } catch (err) {
       console.warn(
-        "[scout/run] google details failed:",
+        "[scout] Google Maps details failed:",
         err instanceof Error ? err.message : err
       );
     }
-    // Gentle pacing — Places default QPS is 10/sec.
-    await sleep(150);
 
     leads.push({
-      name: place.name,
-      phone,
-      address: place.formatted_address ?? "",
-      city: cityName,
-      state: "CA",
-      source: "google_places",
-      sourceUrl: `google-places://${place.place_id}`,
-      searchQuery: "adu-builder",
+      name: detail.name ?? place.name,
+      phone: detail.formatted_phone_number ?? "",
+      address: detail.formatted_address ?? place.formatted_address ?? "",
+      city,
+      state,
+      source: "google_maps",
+      sourceUrl: `google_maps://place/${place.place_id}`,
+      searchQuery: query,
+      website: detail.website ?? "",
+      rating: detail.rating ?? place.rating ?? 0,
+      businessStatus: detail.business_status ?? "",
     });
+
+    await sleep(100);
   }
+
   return leads;
 }
 
@@ -189,6 +154,16 @@ export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    if (!process.env.GOOGLE_MAPS_API_KEY) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "GOOGLE_MAPS_API_KEY required — add it in Railway env vars",
+        },
+        { status: 503 }
+      );
+    }
 
     const body = await request.json();
     const parsed = RunSchema.safeParse(body);
@@ -220,74 +195,45 @@ export async function POST(request: Request) {
       },
     });
 
-    // ── Source selection: Google Places (preferred) → YellowPages fallback ─
-    const googleKey = process.env.GOOGLE_MAPS_API_KEY;
-    const sourceUsed: "google_places" | "yellowpages" = googleKey
-      ? "google_places"
-      : "yellowpages";
-
-    const chosenCities = pickRandom(CITIES, 3);
+    // ── Google Maps Places scraping ────────────────────────────────────────
+    const chosenCities = pickRandom(CITIES, 2);
     const allLeads: ScrapedLead[] = [];
     const citiesScraped: string[] = [];
-    let successfulRequests = 0;
-    let totalRequests = 0;
+    let successfulSearches = 0;
+    let totalSearches = 0;
 
-    if (googleKey) {
-      for (const gCity of chosenCities) {
-        totalRequests++;
+    for (const gCity of chosenCities) {
+      console.log(`[scout] scraping Google Maps for ${gCity}, ${state}`);
+      let cityHadResults = false;
+      for (const query of QUERIES) {
+        totalSearches++;
         try {
-          const leads = await searchGooglePlaces(gCity, googleKey);
+          const leads = await scrapeGoogleMaps(gCity, state, query);
+          console.log(
+            `[scout] ${gCity} / "${query}" → ${leads.length} results`
+          );
           if (leads.length > 0) {
             allLeads.push(...leads);
-            citiesScraped.push(gCity);
-            successfulRequests++;
+            cityHadResults = true;
+            successfulSearches++;
           }
         } catch (err) {
           console.warn(
-            `[scout/run] google places failed ${gCity}:`,
+            `[scout] Google Maps failed ${gCity} / "${query}":`,
             err instanceof Error ? err.message : err
           );
         }
       }
-    } else {
-      let firstRequest = true;
-      for (const yCity of chosenCities) {
-        let cityHadResults = false;
-        for (const query of SEARCHES) {
-          if (!firstRequest) await sleep(2000);
-          firstRequest = false;
-          totalRequests++;
-          try {
-            const leads = await scrapeYellowPages(yCity, query);
-            if (leads.length > 0) {
-              allLeads.push(...leads);
-              cityHadResults = true;
-              successfulRequests++;
-            }
-          } catch (err) {
-            console.warn(
-              `[scout/run] scrape failed ${yCity}/${query}:`,
-              err instanceof Error ? err.message : err
-            );
-          }
-        }
-        if (cityHadResults) citiesScraped.push(yCity);
-      }
+      if (cityHadResults) citiesScraped.push(gCity);
     }
 
-    if (successfulRequests === 0) {
+    if (successfulSearches === 0) {
       await db.scoutJob.update({
         where: { id: localJob.id },
         data: { status: "failed", completedAt: new Date() },
       });
       return NextResponse.json(
-        {
-          success: false,
-          error:
-            sourceUsed === "google_places"
-              ? "Google Places unavailable"
-              : "YellowPages unavailable",
-        },
+        { success: false, error: "Google Maps unavailable" },
         { status: 503 }
       );
     }
@@ -310,7 +256,7 @@ export async function POST(request: Request) {
         await db.lead.create({
           data: {
             productId,
-            source: sourceUsed,
+            source: "google_maps",
             sourceUrl: lead.sourceUrl,
             name: lead.name,
             email: null,
@@ -322,7 +268,10 @@ export async function POST(request: Request) {
             enrichmentJson: {
               phone: lead.phone,
               address: lead.address,
-              data_source: sourceUsed,
+              website: lead.website,
+              rating: lead.rating,
+              businessStatus: lead.businessStatus,
+              data_source: "google_maps",
               scraped_at: scrapedAt,
               search_query: lead.searchQuery,
               target_type: targetType,
@@ -336,7 +285,7 @@ export async function POST(request: Request) {
           continue;
         }
         console.warn(
-          "[scout/run] insert skipped:",
+          "[scout] insert skipped:",
           err instanceof Error ? err.message : err
         );
       }
@@ -351,19 +300,23 @@ export async function POST(request: Request) {
       },
     });
 
+    console.log(
+      `[scout] done — ${inserted} leads, ${duplicatesSkipped} dupes, cities=${citiesScraped.join(",")}`
+    );
+
     return NextResponse.json({
       success: true,
       jobId: localJob.id,
       status: "done",
       leadsCreated: inserted,
       duplicatesSkipped,
-      source: sourceUsed,
+      source: "google_maps",
       citiesScraped,
-      requestsMade: totalRequests,
-      successfulRequests,
+      searchesMade: totalSearches,
+      successfulSearches,
     });
   } catch (err) {
-    console.error("[scout/run] error:", err);
+    console.error("[scout] error:", err);
     return NextResponse.json(
       { error: "Internal error", detail: err instanceof Error ? err.message : "Unknown" },
       { status: 500 }
