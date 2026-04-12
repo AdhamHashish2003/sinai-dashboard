@@ -56,3 +56,11 @@ postgres-data/
 
 # scratch files
 enhanced_prompt.txt
+
+# python workers
+__pycache__/
+*.pyc
+*.pyo
+workers/**/__pycache__/
+.venv/
+venv/

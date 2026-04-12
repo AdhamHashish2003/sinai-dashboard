@@ -5,11 +5,12 @@ Polls for Reply rows with status='pending_draft', calls Claude Sonnet 4.6
 to generate a draft, saves to DB, and pushes a Telegram notification to the
 product's telegram_chat_id.
 
-Run: python main.py
+Run: python main.py [--once]
 Env: DATABASE_URL, ANTHROPIC_API_KEY, TELEGRAM_BOT_TOKEN (optional)
 Cron: */2 * * * *
 """
 
+import argparse
 import asyncio
 import os
 import time
@@ -98,6 +99,11 @@ async def process_reply(
 
 
 async def main() -> None:
+    # --once is a no-op for CLI consistency; this worker always runs one pass.
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--once", action="store_true", help="run once and exit (default)")
+    parser.parse_args()
+
     start = time.time()
     print(f"[swarm] LaunchForge Swarm Worker starting...")
     print(f"[swarm] {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}")

@@ -4,10 +4,11 @@ LaunchForge Radar Worker
 Scheduled cron job that scrapes Reddit + Hacker News for high-intent signals,
 scores them with Claude Haiku, and saves score>=7 to the signals table.
 
-Run: python main.py
+Run: python main.py [--once]
 Env: DATABASE_URL, ANTHROPIC_API_KEY
 """
 
+import argparse
 import asyncio
 import time
 
@@ -63,6 +64,12 @@ async def process_product(client: httpx.AsyncClient, product: dict) -> None:
 
 
 async def main() -> None:
+    # --once is accepted as a no-op for smoke-test / CLI consistency;
+    # this worker always runs one pass and exits (it's a cron job).
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--once", action="store_true", help="run once and exit (default)")
+    parser.parse_args()
+
     start = time.time()
     print(f"[radar] LaunchForge Radar Worker starting...")
     print(f"[radar] {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}")

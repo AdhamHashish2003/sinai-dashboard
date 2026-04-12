@@ -353,6 +353,7 @@ async def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode", choices=["daily", "weekly"], default="daily")
     parser.add_argument("--product-slug", default=None)
+    parser.add_argument("--once", action="store_true", help="run one pass (default behavior)")
     args = parser.parse_args()
 
     start = time.time()
