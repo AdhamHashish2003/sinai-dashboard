@@ -9,7 +9,7 @@ export default async function CrmPage() {
       take: 1000,
     }),
     db.product.findMany({
-      where: { status: "active" },
+      where: { status: { in: ["active", "launched"] } },
       select: { id: true, name: true, slug: true },
       orderBy: { name: "asc" },
     }),

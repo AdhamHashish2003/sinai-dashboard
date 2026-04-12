@@ -30,7 +30,7 @@ export default async function MetricsPage({ searchParams }: PageProps) {
   const [products, summary, radar, swarm, crm, content, actions] =
     await Promise.all([
       db.product.findMany({
-        where: { status: "active" },
+        where: { status: { in: ["active", "launched"] } },
         select: { id: true, name: true, slug: true },
         orderBy: { name: "asc" },
       }),

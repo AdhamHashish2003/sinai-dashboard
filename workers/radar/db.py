@@ -22,14 +22,14 @@ async def close_pool() -> None:
 
 
 async def get_active_products() -> list[dict]:
-    """Fetch all products with status='active'."""
+    """Fetch all products with status in ('active', 'launched')."""
     pool = await get_pool()
     rows = await pool.fetch(
         """
         SELECT id, slug, name, "targetKeywords", "targetSubreddits",
                "valueProp", icp, "groqKey"
         FROM "Product"
-        WHERE status = 'active'
+        WHERE status IN ('active', 'launched')
         """
     )
     return [dict(r) for r in rows]

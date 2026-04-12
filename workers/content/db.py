@@ -29,7 +29,7 @@ async def get_active_products() -> list[dict]:
         SELECT id, slug, name, tagline, "valueProp", icp,
                "freeTierHook", "prodUrl", "groqKey", "telegramChatId"
         FROM "Product"
-        WHERE status = 'active'
+        WHERE status IN ('active', 'launched')
         ORDER BY "createdAt" ASC
         """
     )

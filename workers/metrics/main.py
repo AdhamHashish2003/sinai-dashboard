@@ -43,7 +43,7 @@ MAX_LINES = 40
 
 async def get_active_products(pool: asyncpg.Pool) -> list[dict]:
     rows = await pool.fetch(
-        'SELECT id, slug, name, "telegramChatId" FROM "Product" WHERE status = \'active\''
+        'SELECT id, slug, name, "telegramChatId" FROM "Product" WHERE status IN (\'active\', \'launched\')'
     )
     return [dict(r) for r in rows]
 
