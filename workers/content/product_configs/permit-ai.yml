@@ -1,0 +1,59 @@
+# PermitAI content config — Content Flywheel module
+#
+# Edit this file to change post rotation, target platforms, or city pool
+# without touching worker code.
+
+post_types:
+  - city_report
+  - fee_comparison
+  - adu_case_study
+
+# Day-of-week round robin (0 = Mon, 6 = Sun)
+# Mon/Wed/Fri = city_report, Tue/Thu = fee_comparison, Sat = adu_case_study, Sun = skip
+rotation:
+  0: city_report      # Mon
+  1: fee_comparison   # Tue
+  2: city_report      # Wed
+  3: fee_comparison   # Thu
+  4: city_report      # Fri
+  5: adu_case_study   # Sat
+  6: null             # Sun — skip
+
+target_platforms:
+  - reddit
+  - linkedin
+  - biggerpockets
+
+# Hardcoded top 25 California metros with population (2020 census).
+# Log-scaled weighting is applied in the worker so medium cities still show up.
+# When HUD FMR data becomes available, swap to dynamic weighting from the cities table.
+cities:
+  - { id: "los_angeles_ca", name: "Los Angeles", state: "CA", population: 3898747 }
+  - { id: "san_diego_ca", name: "San Diego", state: "CA", population: 1386932 }
+  - { id: "san_jose_ca", name: "San Jose", state: "CA", population: 1013240 }
+  - { id: "san_francisco_ca", name: "San Francisco", state: "CA", population: 873965 }
+  - { id: "fresno_ca", name: "Fresno", state: "CA", population: 542107 }
+  - { id: "sacramento_ca", name: "Sacramento", state: "CA", population: 524943 }
+  - { id: "long_beach_ca", name: "Long Beach", state: "CA", population: 466742 }
+  - { id: "oakland_ca", name: "Oakland", state: "CA", population: 440646 }
+  - { id: "bakersfield_ca", name: "Bakersfield", state: "CA", population: 403455 }
+  - { id: "anaheim_ca", name: "Anaheim", state: "CA", population: 346824 }
+  - { id: "santa_ana_ca", name: "Santa Ana", state: "CA", population: 310227 }
+  - { id: "riverside_ca", name: "Riverside", state: "CA", population: 314998 }
+  - { id: "stockton_ca", name: "Stockton", state: "CA", population: 320804 }
+  - { id: "irvine_ca", name: "Irvine", state: "CA", population: 307670 }
+  - { id: "chula_vista_ca", name: "Chula Vista", state: "CA", population: 275487 }
+  - { id: "fremont_ca", name: "Fremont", state: "CA", population: 230504 }
+  - { id: "san_bernardino_ca", name: "San Bernardino", state: "CA", population: 222101 }
+  - { id: "modesto_ca", name: "Modesto", state: "CA", population: 218464 }
+  - { id: "oxnard_ca", name: "Oxnard", state: "CA", population: 202063 }
+  - { id: "fontana_ca", name: "Fontana", state: "CA", population: 208393 }
+  - { id: "glendale_ca", name: "Glendale", state: "CA", population: 196543 }
+  - { id: "huntington_beach_ca", name: "Huntington Beach", state: "CA", population: 198711 }
+  - { id: "santa_clarita_ca", name: "Santa Clarita", state: "CA", population: 228673 }
+  - { id: "pasadena_ca", name: "Pasadena", state: "CA", population: 138699 }
+  - { id: "berkeley_ca", name: "Berkeley", state: "CA", population: 124321 }
+
+# Future products (BidForge, OrderForge) will define their own configs here.
+# TODO: workers/content/product_configs/bidforge.yml
+# TODO: workers/content/product_configs/orderforge.yml

@@ -78,6 +78,7 @@ model Product {
   replies          Reply[]
   leads            Lead[]
   scoutJobs        ScoutJob[]
+  proofPosts       ProofPost[]
 
   @@index([status])
 }
@@ -101,6 +102,32 @@ model Signal {
 
   @@unique([productId, sourceUrl])
   @@index([productId, score])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// ─── Content Flywheel: Proof Posts ───────────────────────────────────────────
+
+model ProofPost {
+  id                String    @id @default(cuid())
+  productId         String
+  product           Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  postType          String    // city_report, fee_comparison, adu_case_study
+  topic             String    // city name or comparison label
+  generatedBody     String    @db.Text
+  generatedAssets   Json      @default("[]") // array of file paths / URLs
+  targetPlatforms   Json      @default("[]") // ["reddit","linkedin","twitter","biggerpockets"]
+  postedPlatforms   Json      @default("[]") // what you actually posted to
+  draftVersions     Json      @default("[]") // [{body, createdAt, note?}]
+  status            String    @default("draft") // draft, approved, posted, rejected, failed
+  postedEngagement  Int?      // nullable; manual entry for future adaptive rotation
+  errorMessage      String?   @db.Text
+  scheduledFor      DateTime?
+  postedAt          DateTime?
+  createdAt         DateTime  @default(now())
+
+  @@index([productId, status])
+  @@index([productId, postType, createdAt])
   @@index([status])
   @@index([createdAt])
 }

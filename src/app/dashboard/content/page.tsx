@@ -1,18 +1,50 @@
-import { FileText } from "lucide-react";
+import { db } from "@/lib/db";
+import { ContentClient } from "@/components/content/content-client";
 
-export default function ContentPage() {
+export default async function ContentPage() {
+  const [posts, products] = await Promise.all([
+    db.proofPost.findMany({
+      include: { product: { select: { id: true, name: true, slug: true } } },
+      orderBy: { createdAt: "desc" },
+      take: 200,
+    }),
+    db.product.findMany({
+      where: { status: "active" },
+      select: { id: true, name: true, slug: true },
+      orderBy: { name: "asc" },
+    }),
+  ]);
+
   return (
-    <div>
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold tracking-tight">Content</h2>
-        <p className="text-muted-foreground text-sm mt-1">
-          Content pipeline and publishing workflow. Coming soon.
-        </p>
-      </div>
-      <div className="rounded-xl border border-dashed border-border py-16 text-center">
-        <FileText size={32} className="mx-auto text-muted-foreground mb-3" />
-        <p className="text-sm text-muted-foreground">Content module launching soon.</p>
-      </div>
-    </div>
+    <ContentClient
+      products={products}
+      posts={posts.map((p) => ({
+        id: p.id,
+        productId: p.productId,
+        productName: p.product.name,
+        productSlug: p.product.slug,
+        postType: p.postType,
+        topic: p.topic,
+        generatedBody: p.generatedBody,
+        generatedAssets: Array.isArray(p.generatedAssets)
+          ? (p.generatedAssets as string[])
+          : [],
+        targetPlatforms: Array.isArray(p.targetPlatforms)
+          ? (p.targetPlatforms as string[])
+          : [],
+        postedPlatforms: Array.isArray(p.postedPlatforms)
+          ? (p.postedPlatforms as string[])
+          : [],
+        draftVersions: Array.isArray(p.draftVersions)
+          ? (p.draftVersions as Array<{ body: string; note?: string }>)
+          : [],
+        status: p.status,
+        postedEngagement: p.postedEngagement,
+        errorMessage: p.errorMessage,
+        scheduledFor: p.scheduledFor?.toISOString() ?? null,
+        postedAt: p.postedAt?.toISOString() ?? null,
+        createdAt: p.createdAt.toISOString(),
+      }))}
+    />
   );
 }
