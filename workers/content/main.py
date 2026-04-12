@@ -17,7 +17,7 @@ Daily cron (7am PT = 14:00 UTC during DST, 15:00 UTC during PST):
 
 Run: python main.py
 Optional args: --product-slug <slug> --post-type <type>  (for manual / on-demand)
-Env: DATABASE_URL, ANTHROPIC_API_KEY, TELEGRAM_BOT_TOKEN (optional),
+Env: DATABASE_URL, GROQ_API_KEY, TELEGRAM_BOT_TOKEN (optional),
      PERMITAI_AUTH_TOKEN (optional, unlocks PDF generation)
 Cron: 0 14 * * *  (7am PDT / 6am PST — adjust if DST matters)
 """
@@ -32,9 +32,9 @@ import sys
 import time
 from pathlib import Path
 
-import anthropic
 import httpx
 import yaml
+from groq import AsyncGroq
 
 from db import (
     get_active_products,
@@ -103,7 +103,7 @@ def pick_comparison_cities(config: dict, n: int = 3) -> list[dict]:
 
 
 async def process_product(
-    anth: anthropic.AsyncAnthropic,
+    llm: AsyncGroq,
     http: httpx.AsyncClient,
     product: dict,
     post_type_override: str | None = None,
@@ -175,10 +175,10 @@ async def process_product(
         else:
             print(f"  [content] analyze skipped (no PERMITAI_AUTH_TOKEN or failed)")
 
-    # ── Generate post body with Claude ────────────────────────────────────────
+    # ── Generate post body with Groq Llama ────────────────────────────────────
     try:
         body = await generate_post_body(
-            anth,
+            llm,
             product,
             post_type,
             topic,
@@ -242,9 +242,9 @@ async def main() -> None:
     print(f"[content] LaunchForge Content Flywheel starting…")
     print(f"[content] {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}")
 
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    api_key = os.environ.get("GROQ_API_KEY")
     if not api_key:
-        print("[content] ANTHROPIC_API_KEY not set — exiting")
+        print("[content] GROQ_API_KEY not set — exiting")
         return
 
     products = await get_active_products()
@@ -259,11 +259,11 @@ async def main() -> None:
     has_permitai = bool(os.environ.get("PERMITAI_AUTH_TOKEN"))
     print(f"[content] PermitAI PDF generation: {'enabled' if has_permitai else 'disabled (no token)'}")
 
-    anth = anthropic.AsyncAnthropic(api_key=api_key)
+    llm = AsyncGroq(api_key=api_key)
     async with httpx.AsyncClient() as http:
         for product in products:
             try:
-                await process_product(anth, http, product, post_type_override=args.post_type)
+                await process_product(llm, http, product, post_type_override=args.post_type)
             except Exception as e:
                 print(f"[content] ERROR processing {product.get('slug')}: {e}")
 

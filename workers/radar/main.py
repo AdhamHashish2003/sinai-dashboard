@@ -5,7 +5,7 @@ Scheduled cron job that scrapes Reddit + Hacker News for high-intent signals,
 scores them with Claude Haiku, and saves score>=7 to the signals table.
 
 Run: python main.py [--once]
-Env: DATABASE_URL, ANTHROPIC_API_KEY
+Env: DATABASE_URL, GROQ_API_KEY
 """
 
 import argparse

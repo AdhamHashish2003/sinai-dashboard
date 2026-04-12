@@ -45,7 +45,7 @@ async def get_pending_drafts(limit: int = 20) -> list[dict]:
             p.icp             AS product_icp,
             p."freeTierHook"  AS product_free_tier_hook,
             p."prodUrl"       AS product_prod_url,
-            p."anthropicKey"  AS product_anthropic_key,
+            p."groqKey"       AS product_groq_key,
             p."telegramChatId" AS product_telegram_chat_id
         FROM "Reply" r
         JOIN "Signal" s  ON r."signalId"  = s.id

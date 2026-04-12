@@ -27,7 +27,7 @@ async def get_active_products() -> list[dict]:
     rows = await pool.fetch(
         """
         SELECT id, slug, name, tagline, "valueProp", icp,
-               "freeTierHook", "prodUrl", "anthropicKey", "telegramChatId"
+               "freeTierHook", "prodUrl", "groqKey", "telegramChatId"
         FROM "Product"
         WHERE status = 'active'
         ORDER BY "createdAt" ASC

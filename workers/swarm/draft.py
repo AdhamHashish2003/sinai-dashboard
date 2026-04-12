@@ -1,8 +1,9 @@
-"""Claude Sonnet 4.6 reply drafter."""
+"""Groq Llama 3.3 70B reply drafter."""
 
-import os
 from pathlib import Path
-import anthropic
+from groq import AsyncGroq
+
+MODEL = "llama-3.3-70b-versatile"
 
 PROMPTS_DIR = Path(__file__).parent / "prompts"
 
@@ -18,12 +19,12 @@ def load_prompt(name: str) -> str:
 
 
 async def generate_draft(
-    client: anthropic.AsyncAnthropic,
+    client: AsyncGroq,
     signal: dict,
     product: dict,
     regenerate_note: str | None = None,
 ) -> str:
-    """Call Claude Sonnet 4.6 to draft a reply. Returns cleaned draft text."""
+    """Call Groq Llama 3.3 70B to draft a reply. Returns cleaned draft text."""
     prompt_template = load_prompt("reddit_reply.md")
 
     system = prompt_template.format(
@@ -56,14 +57,17 @@ async def generate_draft(
 
     user_msg = "\n".join(user_msg_parts)
 
-    resp = await client.messages.create(
-        model="claude-sonnet-4-6",
+    resp = await client.chat.completions.create(
+        model=MODEL,
         max_tokens=600,
-        system=system,
-        messages=[{"role": "user", "content": user_msg}],
+        temperature=0.7,
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": user_msg},
+        ],
     )
 
-    text = resp.content[0].text.strip()
+    text = (resp.choices[0].message.content or "").strip()
 
     # Strip accidental wrapping quotes, code fences, or "Here's a draft:" preambles
     if text.startswith('"') and text.endswith('"'):

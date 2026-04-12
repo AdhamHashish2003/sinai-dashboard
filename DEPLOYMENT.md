@@ -7,9 +7,9 @@ This doc lists every service you need to create in the Railway dashboard for the
 | # | Service | Type | Root Dir | Cron | Env vars |
 |---|---------|------|----------|------|----------|
 | 1 | `launchforge-web` | Web | `/` (repo root) | — | `DATABASE_URL`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL`, `GHOSTCREW_API_URL`, `GHOSTCREW_API_KEY`, `PERMITAI_BASE_URL`, `PERMITAI_AUTH_TOKEN`, `TELEGRAM_BOT_TOKEN` |
-| 2 | `launchforge-radar` | Cron | `workers/radar` | `*/30 * * * *` | `DATABASE_URL`, `ANTHROPIC_API_KEY` |
-| 3 | `launchforge-swarm` | Cron | `workers/swarm` | `*/2 * * * *` | `DATABASE_URL`, `ANTHROPIC_API_KEY`, `TELEGRAM_BOT_TOKEN` |
-| 4 | `launchforge-content` | Cron | `workers/content` | `0 14 * * *` (7am PDT daily) | `DATABASE_URL`, `ANTHROPIC_API_KEY`, `TELEGRAM_BOT_TOKEN`, `PERMITAI_BASE_URL`, `PERMITAI_AUTH_TOKEN` |
+| 2 | `launchforge-radar` | Cron | `workers/radar` | `*/30 * * * *` | `DATABASE_URL`, `GROQ_API_KEY` |
+| 3 | `launchforge-swarm` | Cron | `workers/swarm` | `*/2 * * * *` | `DATABASE_URL`, `GROQ_API_KEY`, `TELEGRAM_BOT_TOKEN` |
+| 4 | `launchforge-content` | Cron | `workers/content` | `0 14 * * *` (7am PDT daily) | `DATABASE_URL`, `GROQ_API_KEY`, `TELEGRAM_BOT_TOKEN`, `PERMITAI_BASE_URL`, `PERMITAI_AUTH_TOKEN` |
 | 5 | `launchforge-metrics-daily` | Cron | `workers/metrics` | `0 15 * * *` (8am PDT daily) | `DATABASE_URL`, `TELEGRAM_BOT_TOKEN`, `DASHBOARD_URL` |
 | 6 | `launchforge-metrics-weekly` | Cron | `workers/metrics` | `0 15 * * 1` (Monday 8am PDT) | `DATABASE_URL`, `TELEGRAM_BOT_TOKEN`, `DASHBOARD_URL` — same service can be split per cron, or use `--mode weekly` start command override |
 
@@ -42,7 +42,7 @@ TELEGRAM_BOT_TOKEN            # your Grammy/GhostCrew bot token
 4. **Settings → Deploy → Cron Schedule**: `*/30 * * * *`
 5. **Variables**:
    - `DATABASE_URL` — link from Postgres service (Add reference)
-   - `ANTHROPIC_API_KEY` — your Anthropic key (must have Haiku 4.5 access)
+   - `GROQ_API_KEY` — your Groq key (scoring uses llama-3.3-70b-versatile)
 6. Deploy. First run happens at the next :00 or :30 of the hour.
 
 ### 3. Swarm cron service
@@ -53,7 +53,7 @@ TELEGRAM_BOT_TOKEN            # your Grammy/GhostCrew bot token
 4. **Cron Schedule**: `*/2 * * * *`
 5. **Variables**:
    - `DATABASE_URL` (link from Postgres)
-   - `ANTHROPIC_API_KEY` (must have Sonnet 4.6 access)
+   - `GROQ_API_KEY` (drafting uses llama-3.3-70b-versatile)
    - `TELEGRAM_BOT_TOKEN` (same as GhostCrew bot)
 
 ### 4. Content Flywheel cron service
@@ -64,7 +64,7 @@ TELEGRAM_BOT_TOKEN            # your Grammy/GhostCrew bot token
 4. **Cron Schedule**: `0 14 * * *` (= 7am PDT / 6am PST — cron doesn't track DST, accept the 1h drift)
 5. **Variables**:
    - `DATABASE_URL` (link from Postgres)
-   - `ANTHROPIC_API_KEY`
+   - `GROQ_API_KEY`
    - `TELEGRAM_BOT_TOKEN`
    - `PERMITAI_BASE_URL` = `https://permit-agent-production-1731.up.railway.app`
    - `PERMITAI_AUTH_TOKEN` (optional — leave empty for text-only v1 until you grab a token from `/api/auth/login`)
@@ -149,7 +149,7 @@ Use these locally to verify each worker produces real results before trusting cr
 ```bash
 # Copy the Railway Postgres URL and your API keys into your shell first.
 export DATABASE_URL='<production-postgres-url-from-railway>'
-export ANTHROPIC_API_KEY='<your-anthropic-key>'
+export GROQ_API_KEY='<your-groq-key>'
 export TELEGRAM_BOT_TOKEN='<your-telegram-bot-token>'
 export PERMITAI_BASE_URL='https://permit-agent-production-1731.up.railway.app'
 export DASHBOARD_URL='https://sinai-dashboard-production.up.railway.app'
@@ -177,7 +177,7 @@ cd workers/metrics && python main.py --once && cd ../..
 Success criteria per worker:
 - **Radar**: prints `saved N signals to DB` where N ≥ 1
 - **Swarm**: prints `saved draft, status → ready_to_post` (requires a pending_draft row to exist)
-- **Content**: prints `saved ProofPost <id>` (requires PermitAI `status='active'` and `anthropicKey` availability)
+- **Content**: prints `saved ProofPost <id>` (requires PermitAI `status='active'` and `GROQ_API_KEY` env var or `groqKey` on Product)
 - **Metrics**: prints `telegram: sent` if chatId+token are set, or `telegram: skipped` otherwise
 
 ---

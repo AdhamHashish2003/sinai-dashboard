@@ -1,8 +1,10 @@
-"""Claude Haiku intent scorer for the Radar worker."""
+"""Groq Llama intent scorer for the Radar worker."""
 
 import json
 import os
-import anthropic
+from groq import AsyncGroq
+
+MODEL = "llama-3.3-70b-versatile"
 
 SYSTEM_PROMPT = """You score social media posts 1-10 for purchase intent for {product_name}.
 
@@ -25,13 +27,13 @@ Scoring rubric:
 
 
 async def score_posts(product: dict, posts: list[dict]) -> list[dict]:
-    """Score each post with Claude Haiku. Returns posts with score + reason added."""
-    api_key = product.get("anthropicKey") or os.environ.get("ANTHROPIC_API_KEY")
+    """Score each post with Groq Llama. Returns posts with score + reason added."""
+    api_key = product.get("groqKey") or os.environ.get("GROQ_API_KEY")
     if not api_key:
-        print("  [score] no ANTHROPIC_API_KEY — skipping scoring")
+        print("  [score] no GROQ_API_KEY — skipping scoring")
         return []
 
-    client = anthropic.AsyncAnthropic(api_key=api_key)
+    client = AsyncGroq(api_key=api_key)
     system = SYSTEM_PROMPT.format(
         product_name=product["name"],
         value_prop=product.get("valueProp") or "N/A",
@@ -45,15 +47,20 @@ async def score_posts(product: dict, posts: list[dict]) -> list[dict]:
             continue
 
         try:
-            resp = await client.messages.create(
-                model="claude-haiku-4-5-20251001",
+            resp = await client.chat.completions.create(
+                model=MODEL,
                 max_tokens=100,
-                system=system,
-                messages=[{"role": "user", "content": user_msg}],
+                temperature=0.2,
+                response_format={"type": "json_object"},
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user_msg},
+                ],
             )
 
-            text = resp.content[0].text.strip()
-            # Parse JSON from response, handling possible markdown wrapping
+            text = (resp.choices[0].message.content or "").strip()
+
+            # JSON mode should produce clean JSON, but strip fences just in case
             if text.startswith("```"):
                 text = text.split("```")[1]
                 if text.startswith("json"):
@@ -73,7 +80,7 @@ async def score_posts(product: dict, posts: list[dict]) -> list[dict]:
                 print(f"  [score] processed {i + 1}/{len(posts)} posts...")
 
         except json.JSONDecodeError as e:
-            print(f"  [score] bad JSON from Haiku: {e} — raw: {text[:200]}")
+            print(f"  [score] bad JSON from Llama: {e}")
         except Exception as e:
             print(f"  [score] error scoring post: {e}")
 

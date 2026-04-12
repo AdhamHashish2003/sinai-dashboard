@@ -1,12 +1,12 @@
 """
 LaunchForge Swarm Worker
 ========================
-Polls for Reply rows with status='pending_draft', calls Claude Sonnet 4.6
+Polls for Reply rows with status='pending_draft', calls Groq Llama 3.3 70B
 to generate a draft, saves to DB, and pushes a Telegram notification to the
 product's telegram_chat_id.
 
 Run: python main.py [--once]
-Env: DATABASE_URL, ANTHROPIC_API_KEY, TELEGRAM_BOT_TOKEN (optional)
+Env: DATABASE_URL, GROQ_API_KEY, TELEGRAM_BOT_TOKEN (optional)
 Cron: */2 * * * *
 """
 
@@ -15,8 +15,8 @@ import asyncio
 import os
 import time
 
-import anthropic
 import httpx
+from groq import AsyncGroq
 
 from db import get_pending_drafts, save_draft, mark_draft_failed, close_pool
 from draft import generate_draft
@@ -27,7 +27,7 @@ RATE_LIMIT_DELAY = 12
 
 
 async def process_reply(
-    anth: anthropic.AsyncAnthropic,
+    llm: AsyncGroq,
     http: httpx.AsyncClient,
     row: dict,
 ) -> None:
@@ -62,7 +62,7 @@ async def process_reply(
 
     # ── Draft ─────────────────────────────────────────────────────────────────
     try:
-        draft = await generate_draft(anth, signal, product, regenerate_note)
+        draft = await generate_draft(llm, signal, product, regenerate_note)
         print(f"  [draft] {len(draft)} chars: {draft[:100]}...")
     except Exception as e:
         print(f"  [swarm] draft failed: {e}")
@@ -108,9 +108,9 @@ async def main() -> None:
     print(f"[swarm] LaunchForge Swarm Worker starting...")
     print(f"[swarm] {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}")
 
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    api_key = os.environ.get("GROQ_API_KEY")
     if not api_key:
-        print("[swarm] ANTHROPIC_API_KEY not set — exiting")
+        print("[swarm] GROQ_API_KEY not set — exiting")
         return
 
     pending = await get_pending_drafts()
@@ -120,11 +120,11 @@ async def main() -> None:
         await close_pool()
         return
 
-    anth = anthropic.AsyncAnthropic(api_key=api_key)
+    llm = AsyncGroq(api_key=api_key)
     async with httpx.AsyncClient() as http:
         for i, row in enumerate(pending):
             try:
-                await process_reply(anth, http, row)
+                await process_reply(llm, http, row)
             except Exception as e:
                 print(f"[swarm] ERROR processing reply: {e}")
 

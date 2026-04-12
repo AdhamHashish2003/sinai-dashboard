@@ -1,8 +1,9 @@
-"""Claude Sonnet 4.6 post generator — loads prompt files, calls Claude."""
+"""Groq Llama 3.3 70B post generator — loads prompt files, calls Groq."""
 
-import os
 from pathlib import Path
-import anthropic
+from groq import AsyncGroq
+
+MODEL = "llama-3.3-70b-versatile"
 
 PROMPTS_DIR = Path(__file__).parent / "prompts"
 
@@ -14,7 +15,7 @@ def load_prompt(post_type: str) -> str:
 
 
 async def generate_post_body(
-    client: anthropic.AsyncAnthropic,
+    client: AsyncGroq,
     product: dict,
     post_type: str,
     topic: dict,
@@ -43,22 +44,22 @@ async def generate_post_body(
         ),
     }
 
-    # Fill any placeholder that exists; missing keys default to ""
     system = template.format_map(_Defaulting(fmt_vars))
 
-    resp = await client.messages.create(
-        model="claude-sonnet-4-6",
+    resp = await client.chat.completions.create(
+        model=MODEL,
         max_tokens=800,
-        system=system,
+        temperature=0.7,
         messages=[
+            {"role": "system", "content": system},
             {
                 "role": "user",
                 "content": f"Generate the {post_type} proof post now. Output ONLY the post body text.",
-            }
+            },
         ],
     )
 
-    text = resp.content[0].text.strip()
+    text = (resp.choices[0].message.content or "").strip()
 
     # Strip accidental wrapping quotes / fences / preambles
     if text.startswith('"') and text.endswith('"'):
