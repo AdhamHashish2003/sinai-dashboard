@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { z } from "zod";
 
 const UpdateSchema = z.object({
-  status: z.enum(["new", "approved", "dismissed", "ready_to_draft"]),
+  status: z.enum(["new", "approved", "dismissed", "ready_to_draft", "posted"]),
 });
 
 export async function PATCH(
@@ -33,6 +33,30 @@ export async function PATCH(
       where: { id },
       data: { status: parsed.data.status },
     });
+
+    // When marking ready_to_draft, create a Reply row so /swarm shows it
+    // in the "Pending Draft" column and the swarm worker picks it up.
+    if (parsed.data.status === "ready_to_draft") {
+      const existing = await db.reply.findUnique({ where: { signalId: id } });
+      if (!existing) {
+        await db.reply.create({
+          data: {
+            signalId: id,
+            productId: signal.productId,
+            platform: signal.source,
+            status: "pending_draft",
+            draftBody: "",
+            draftVersions: [],
+          },
+        });
+      } else if (existing.status === "rejected") {
+        // Un-reject + re-queue for drafting
+        await db.reply.update({
+          where: { id: existing.id },
+          data: { status: "pending_draft" },
+        });
+      }
+    }
 
     return NextResponse.json({ success: true });
   } catch (err) {
