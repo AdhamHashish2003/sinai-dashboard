@@ -111,7 +111,7 @@ export function LandingClient() {
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
             </span>
-            Dashboard v2 — Live
+            LaunchForge — Live
           </div>
 
           {/* Title */}
@@ -119,15 +119,15 @@ export function LandingClient() {
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <div className="w-[500px] h-[250px] bg-white/[0.03] rounded-full blur-[120px]" />
             </div>
-            <h1 className="relative text-7xl sm:text-8xl lg:text-[10rem] font-black tracking-tighter leading-none">
+            <h1 className="relative text-6xl sm:text-7xl lg:text-[8rem] font-black tracking-tighter leading-none">
               <span className="bg-gradient-to-b from-white via-white/90 to-zinc-600 bg-clip-text text-transparent">
-                Sinai
+                LaunchForge
               </span>
             </h1>
           </div>
 
           <p className="text-lg sm:text-xl text-zinc-400 max-w-md mx-auto leading-relaxed">
-            Your command center for content, analytics, and growth.
+            Mission Control for Shipping SaaS
           </p>
 
           <div className="flex items-center justify-center pt-4">

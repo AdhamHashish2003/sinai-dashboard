@@ -79,6 +79,7 @@ async function main() {
   console.log("Seeding database...");
 
   // Clean all tables
+  await db.product.deleteMany();
   await db.connectionMetric.deleteMany();
   await db.webMetric.deleteMany();
   await db.connection.deleteMany();
@@ -96,6 +97,22 @@ async function main() {
   await db.salesOrder.deleteMany();
   await db.topProduct.deleteMany();
   await db.funnelSnapshot.deleteMany();
+
+  // ── Products (multi-tenant) ──────────────────────────────────────────────────
+  await db.product.create({
+    data: {
+      slug: "permit-ai",
+      name: "PermitAI",
+      tagline: "AI-powered building permit reviews in minutes, not weeks",
+      status: "building",
+      icp: "Municipal building departments processing 500+ permits/year",
+      targetKeywords: ["ai building permit", "automated plan review", "permit management software"],
+      targetSubreddits: ["r/civilengineering", "r/AEC", "r/construction"],
+      valueProp: "Cut permit review time from 3 weeks to 3 hours with AI that understands local building codes",
+      freeTierHook: "5 free permit reviews/month",
+      prodUrl: "https://permit-ai.com",
+    },
+  });
 
   // ── SaaS Products + 30 days of metrics ──────────────────────────────────────
   for (const p of PRODUCTS) {

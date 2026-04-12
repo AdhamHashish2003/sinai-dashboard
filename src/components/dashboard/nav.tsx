@@ -5,7 +5,19 @@ import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
-import { LayoutDashboard, BarChart3, Clapperboard, Link2, LogOut, Sun, Moon } from "lucide-react";
+import {
+  Package,
+  Radar,
+  Bug,
+  Users,
+  FileText,
+  Search,
+  BarChart3,
+  LogOut,
+  Sun,
+  Moon,
+  Rocket,
+} from "lucide-react";
 import Image from "next/image";
 
 interface NavProps {
@@ -13,10 +25,13 @@ interface NavProps {
 }
 
 const NAV_LINKS = [
-  { href: "/dashboard", label: "SaaS", icon: LayoutDashboard },
-  { href: "/dashboard/analytics", label: "Analytics", icon: BarChart3 },
-  { href: "/dashboard/content-farm", label: "Content Farm", icon: Clapperboard },
-  { href: "/dashboard/connections", label: "Connections", icon: Link2 },
+  { href: "/dashboard/products", label: "Products", icon: Package },
+  { href: "/dashboard/radar", label: "Radar", icon: Radar },
+  { href: "/dashboard/swarm", label: "Swarm", icon: Bug },
+  { href: "/dashboard/crm", label: "CRM", icon: Users },
+  { href: "/dashboard/content", label: "Content", icon: FileText },
+  { href: "/dashboard/seo", label: "SEO", icon: Search },
+  { href: "/dashboard/metrics", label: "Metrics", icon: BarChart3 },
 ];
 
 export function DashboardNav({ user }: NavProps) {
@@ -28,23 +43,20 @@ export function DashboardNav({ user }: NavProps) {
   return (
     <header className="border-b border-border bg-card px-6 py-3 flex items-center justify-between">
       <div className="flex items-center gap-6">
-        <Link href="/dashboard" className="flex items-center gap-2 text-sm font-semibold">
-          <LayoutDashboard size={18} className="text-primary" />
-          <span>Sinai</span>
+        <Link href="/dashboard/products" className="flex items-center gap-2 text-sm font-semibold">
+          <Rocket size={18} className="text-primary" />
+          <span className="font-mono tracking-tight">LaunchForge</span>
         </Link>
 
-        <nav className="flex items-center gap-1">
+        <nav className="flex items-center gap-1 overflow-x-auto">
           {NAV_LINKS.map((link) => {
-            const isActive =
-              link.href === "/dashboard"
-                ? pathname === "/dashboard"
-                : pathname.startsWith(link.href);
+            const isActive = pathname.startsWith(link.href);
 
             return (
               <Link
                 key={link.href}
                 href={link.href}
-                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-colors ${
                   isActive
                     ? "bg-primary/10 text-primary"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/50"

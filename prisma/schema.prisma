@@ -55,6 +55,29 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
+// ─── Products (multi-tenant root) ────────────────────────────────────────────
+
+model Product {
+  id               String   @id @default(cuid())
+  slug             String   @unique
+  name             String
+  tagline          String?
+  status           String   @default("idea") // idea, building, launched, retired
+  icp              String?  // ideal customer profile
+  targetKeywords   String[] @default([])
+  targetSubreddits String[] @default([])
+  valueProp        String?
+  freeTierHook     String?
+  prodUrl          String?
+  anthropicKey     String?
+  groqKey          String?
+  telegramChatId   String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([status])
+}
+
 // ─── SaaS Analytics ──────────────────────────────────────────────────────────
 
 model SaasProduct {

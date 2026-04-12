@@ -14,8 +14,8 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Sinai Dashboard",
-  description: "Unified SaaS analytics and social media tracking platform",
+  title: "LaunchForge",
+  description: "Mission Control for Shipping SaaS",
 };
 
 export default function RootLayout({
