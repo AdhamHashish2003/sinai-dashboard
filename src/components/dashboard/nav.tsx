@@ -43,7 +43,7 @@ export function DashboardNav({ user }: NavProps) {
   return (
     <header className="border-b border-border bg-card px-6 py-3 flex items-center justify-between">
       <div className="flex items-center gap-6">
-        <Link href="/dashboard/products" className="flex items-center gap-2 text-sm font-semibold">
+        <Link href="/dashboard/metrics" className="flex items-center gap-2 text-sm font-semibold">
           <Rocket size={18} className="text-primary" />
           <span className="font-mono tracking-tight">LaunchForge</span>
         </Link>

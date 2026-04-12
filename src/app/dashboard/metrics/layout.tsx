@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, BarChart3, Clapperboard, Link2 } from "lucide-react";
+import { LayoutDashboard, Instagram, BarChart3, TrendingUp } from "lucide-react";
 
 const METRICS_LINKS = [
-  { href: "/dashboard/metrics", label: "SaaS Overview", icon: LayoutDashboard },
+  { href: "/dashboard/metrics", label: "Overview", icon: TrendingUp },
+  { href: "/dashboard/metrics/saas", label: "SaaS", icon: LayoutDashboard },
+  { href: "/dashboard/metrics/instagram", label: "Instagram", icon: Instagram },
   { href: "/dashboard/metrics/analytics", label: "Analytics", icon: BarChart3 },
-  { href: "/dashboard/metrics/content-farm", label: "Content Farm", icon: Clapperboard },
-  { href: "/dashboard/metrics/connections", label: "Connections", icon: Link2 },
 ];
 
 export default function MetricsLayout({ children }: { children: React.ReactNode }) {
