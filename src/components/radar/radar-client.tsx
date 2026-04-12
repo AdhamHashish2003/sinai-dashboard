@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
-  Radar,
   ExternalLink,
   X,
   FileEdit,
   ArrowUpDown,
   MessageSquare,
+  Play,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -71,11 +72,41 @@ function ScoreBadge({ score }: { score: number }) {
 }
 
 export function RadarClient({ signals: initial, products }: Props) {
+  const router = useRouter();
   const [signals, setSignals] = useState(initial);
   const [productFilter, setProductFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [sortDesc, setSortDesc] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [running, setRunning] = useState(false);
+  const [runMessage, setRunMessage] = useState<string | null>(null);
+
+  async function handleRunRadar() {
+    setRunning(true);
+    setRunMessage("Scanning Reddit… calling Groq for intent scoring");
+    try {
+      const payload = productFilter !== "all" ? { productId: productFilter } : {};
+      const res = await fetch("/api/radar/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setRunMessage(
+          `Sweep complete: ${data.scraped} scraped → ${data.scored} scored → ${data.saved} saved (score ≥ 7)`
+        );
+        router.refresh();
+      } else {
+        setRunMessage(`Radar failed: ${data.error ?? "unknown"}`);
+      }
+    } catch (err) {
+      setRunMessage(`Radar error: ${err instanceof Error ? err.message : "unknown"}`);
+    } finally {
+      setRunning(false);
+      setTimeout(() => setRunMessage(null), 6000);
+    }
+  }
 
   async function updateStatus(id: string, status: string) {
     setUpdatingId(id);
@@ -109,26 +140,67 @@ export function RadarClient({ signals: initial, products }: Props) {
   return (
     <div>
       {/* Header */}
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold tracking-tight">Radar</h2>
-        <p className="text-muted-foreground text-sm mt-1">
-          High-intent signals from Reddit and Hacker News, scored by AI.
-        </p>
+      <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight lf-scanline">
+            <span className="lf-dot lf-dot-live mr-2" />
+            Radar
+          </h2>
+          <p className="text-xs mt-2" style={{ color: "var(--lf-text-dim)" }}>
+            High-intent signals from Reddit + Hacker News, scored by llama-3.3-70b
+          </p>
+        </div>
+
+        <button
+          onClick={handleRunRadar}
+          disabled={running}
+          className="lf-btn lf-btn-primary lf-btn-pulse"
+        >
+          {running ? (
+            <>
+              <div className="lf-radar" style={{ width: 16, height: 16 }}>
+                <div className="lf-radar-sweep" />
+              </div>
+              Scanning…
+            </>
+          ) : (
+            <>
+              <Play size={12} /> Run Radar Now
+            </>
+          )}
+        </button>
       </div>
+
+      {runMessage && (
+        <div
+          className="mb-4 rounded-lg px-4 py-2.5 text-xs"
+          style={{
+            background: "rgba(255, 107, 0, 0.05)",
+            border: "1px solid var(--lf-border-hover)",
+            color: "var(--lf-orange)",
+          }}
+        >
+          {runMessage}
+        </div>
+      )}
 
       {/* Stats bar */}
       <div className="grid grid-cols-3 gap-3 mb-6">
-        <div className="rounded-lg border border-border bg-card p-3">
-          <div className="text-xs text-muted-foreground">Total Signals</div>
-          <div className="text-2xl font-bold font-mono">{counts.total}</div>
+        <div className="lf-card-static p-3">
+          <div className="lf-label">Total Signals</div>
+          <div className="lf-readout text-2xl mt-1">{counts.total}</div>
         </div>
-        <div className="rounded-lg border border-border bg-card p-3">
-          <div className="text-xs text-muted-foreground">New (Unreviewed)</div>
-          <div className="text-2xl font-bold font-mono text-blue-400">{counts.new}</div>
+        <div className="lf-card-static p-3">
+          <div className="lf-label">New (Unreviewed)</div>
+          <div className="text-2xl font-bold font-mono mt-1" style={{ color: "var(--lf-cyan)" }}>
+            {counts.new}
+          </div>
         </div>
-        <div className="rounded-lg border border-border bg-card p-3">
-          <div className="text-xs text-muted-foreground">Score 9-10</div>
-          <div className="text-2xl font-bold font-mono text-emerald-400">{counts.highIntent}</div>
+        <div className="lf-card-static p-3">
+          <div className="lf-label">Score 9-10</div>
+          <div className="text-2xl font-bold font-mono text-emerald-400 mt-1">
+            {counts.highIntent}
+          </div>
         </div>
       </div>
 
@@ -174,12 +246,15 @@ export function RadarClient({ signals: initial, products }: Props) {
 
       {/* Signals table */}
       {filtered.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border py-16 text-center">
-          <Radar size={32} className="mx-auto text-muted-foreground mb-3" />
-          <p className="text-sm text-muted-foreground">
+        <div className="lf-card-static py-16 text-center">
+          <div className="lf-wireframe-dish mb-4" />
+          <p
+            className="text-xs uppercase tracking-widest"
+            style={{ color: "var(--lf-text-dim)" }}
+          >
             {signals.length === 0
-              ? "No signals yet. The radar worker will populate this on its next run."
-              : "No signals match the current filters."}
+              ? "Awaiting signal… click Run Radar Now to sweep"
+              : "No signals match the current filters"}
           </p>
         </div>
       ) : (

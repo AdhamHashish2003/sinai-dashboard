@@ -84,6 +84,7 @@ export function ContentClient({ products, posts: initial }: Props) {
   const [markPostedForId, setMarkPostedForId] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [generatePostType, setGeneratePostType] = useState("city_report");
 
   const filtered = posts.filter(
     (p) => productFilter === "all" || p.productId === productFilter
@@ -160,39 +161,42 @@ export function ContentClient({ products, posts: initial }: Props) {
     }
   }
 
-  async function handleGenerateNow() {
+  async function handleGenerateNow(postType: string) {
     if (productFilter === "all") {
       setMessage("Select a product first");
       setTimeout(() => setMessage(null), 3000);
       return;
     }
     setRunning(true);
-    setMessage("Queuing a manual generation… the content worker picks it up on next cron tick.");
+    setMessage(`Generating ${postType.replace("_", " ")} with Groq llama-3.3-70b…`);
     try {
       const res = await fetch("/api/content/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productId: productFilter, postType: "city_report" }),
+        body: JSON.stringify({ productId: productFilter, postType }),
       });
       const body = await res.json();
       if (res.ok) {
-        setMessage(body.hint ?? "Queued. Reloading…");
-        setTimeout(() => window.location.reload(), 1500);
+        setMessage(`Generated "${body.topic}" (${body.charCount} chars)${body.telegramSent ? " · Telegram sent" : ""}`);
+        setTimeout(() => window.location.reload(), 1200);
       } else {
-        setMessage(`Error: ${body.error ?? "unknown"}`);
+        setMessage(`Error: ${body.error ?? "unknown"}${body.detail ? ` — ${body.detail}` : ""}`);
       }
     } finally {
       setRunning(false);
-      setTimeout(() => setMessage(null), 6000);
+      setTimeout(() => setMessage(null), 8000);
     }
   }
 
   return (
     <div>
       <div className="mb-5">
-        <h2 className="text-2xl font-bold tracking-tight">Content Flywheel</h2>
-        <p className="text-muted-foreground text-sm mt-1">
-          Daily Claude-generated proof posts. Approve → Copy → paste to Reddit / LinkedIn / BiggerPockets → Mark Posted.
+        <h2 className="text-2xl font-bold tracking-tight lf-scanline">
+          <span className="lf-dot lf-dot-orange mr-2" />
+          Content Flywheel
+        </h2>
+        <p className="text-xs mt-2" style={{ color: "var(--lf-text-dim)" }}>
+          Daily Groq-generated proof posts · Approve → Copy → paste to Reddit / LinkedIn / BiggerPockets → Mark Posted
         </p>
       </div>
 
@@ -211,16 +215,38 @@ export function ContentClient({ products, posts: initial }: Props) {
           ))}
         </select>
 
-        <button
-          onClick={handleGenerateNow}
+        <select
+          value={generatePostType}
+          onChange={(e) => setGeneratePostType(e.target.value)}
           disabled={running}
-          className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-50"
+          className="rounded-lg border border-border bg-card px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 disabled:opacity-50"
+          title="Post type to generate"
         >
-          <Play size={12} />
-          Generate Now
+          <option value="city_report">City Report</option>
+          <option value="fee_comparison">Fee Comparison</option>
+          <option value="adu_case_study">ADU Case Study</option>
+        </select>
+
+        <button
+          onClick={() => handleGenerateNow(generatePostType)}
+          disabled={running}
+          className="lf-btn lf-btn-primary lf-btn-pulse"
+        >
+          {running ? (
+            <>
+              <div className="lf-radar" style={{ width: 16, height: 16 }}>
+                <div className="lf-radar-sweep" />
+              </div>
+              Generating…
+            </>
+          ) : (
+            <>
+              <Play size={12} /> Generate Now
+            </>
+          )}
         </button>
 
-        <span className="text-xs text-muted-foreground ml-auto">
+        <span className="text-xs ml-auto" style={{ color: "var(--lf-text-dim)" }}>
           {filtered.length} post{filtered.length !== 1 ? "s" : ""}
         </span>
       </div>

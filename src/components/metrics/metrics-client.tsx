@@ -16,6 +16,7 @@ import {
   CartesianGrid,
   Legend,
 } from "recharts";
+import { useState } from "react";
 import {
   Radar as RadarIcon,
   Bug,
@@ -26,6 +27,7 @@ import {
   TrendingUp,
   Activity,
   Clock,
+  Send,
 } from "lucide-react";
 
 type Period = "7d" | "30d" | "90d";
@@ -115,6 +117,34 @@ export function MetricsClient({
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [sendingDigest, setSendingDigest] = useState(false);
+  const [digestMessage, setDigestMessage] = useState<string | null>(null);
+
+  async function handleSendDigest() {
+    setSendingDigest(true);
+    setDigestMessage("Compiling digest…");
+    try {
+      const payload = productId ? { productId, mode: "daily" } : { mode: "daily" };
+      const res = await fetch("/api/metrics/digest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        const sent = (data.results ?? []).filter((r: { telegramSent: boolean }) => r.telegramSent).length;
+        const skipped = (data.results ?? []).filter((r: { skipped: boolean }) => r.skipped).length;
+        setDigestMessage(`Digest sent to ${sent} chat(s), ${skipped} skipped`);
+      } else {
+        setDigestMessage(`Failed: ${data.error ?? "unknown"}`);
+      }
+    } catch (err) {
+      setDigestMessage(`Error: ${err instanceof Error ? err.message : "unknown"}`);
+    } finally {
+      setSendingDigest(false);
+      setTimeout(() => setDigestMessage(null), 6000);
+    }
+  }
 
   function update(key: string, value: string) {
     const params = new URLSearchParams(searchParams?.toString() ?? "");
@@ -132,12 +162,49 @@ export function MetricsClient({
   return (
     <div>
       {/* Header */}
-      <div className="mb-5">
-        <h2 className="text-2xl font-bold tracking-tight">Overview</h2>
-        <p className="text-muted-foreground text-sm mt-1">
-          Unified command center across Radar, Swarm, CRM, and Content Flywheel.
-        </p>
+      <div className="mb-5 flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight lf-scanline">
+            <span className="lf-dot lf-dot-live mr-2" />
+            Overview
+          </h2>
+          <p className="text-xs mt-2" style={{ color: "var(--lf-text-dim)" }}>
+            Unified command center across Radar, Swarm, CRM, and Content Flywheel
+          </p>
+        </div>
+
+        <button
+          onClick={handleSendDigest}
+          disabled={sendingDigest}
+          className="lf-btn"
+        >
+          {sendingDigest ? (
+            <>
+              <div className="lf-radar" style={{ width: 14, height: 14 }}>
+                <div className="lf-radar-sweep" />
+              </div>
+              Sending…
+            </>
+          ) : (
+            <>
+              <Send size={12} /> Send Digest Now
+            </>
+          )}
+        </button>
       </div>
+
+      {digestMessage && (
+        <div
+          className="mb-4 rounded-lg px-4 py-2.5 text-xs"
+          style={{
+            background: "rgba(255, 107, 0, 0.05)",
+            border: "1px solid var(--lf-border-hover)",
+            color: "var(--lf-orange)",
+          }}
+        >
+          {digestMessage}
+        </div>
+      )}
 
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2 mb-5">

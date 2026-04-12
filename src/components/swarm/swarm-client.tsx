@@ -12,6 +12,7 @@ import {
   Clock,
   Send,
   History,
+  Play,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -239,6 +240,35 @@ function ReplyCard({
 export function SwarmClient({ replies: initial }: Props) {
   const [replies, setReplies] = useState(initial);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [runningAll, setRunningAll] = useState(false);
+  const [runMessage, setRunMessage] = useState<string | null>(null);
+
+  async function handleGenerateAll() {
+    setRunningAll(true);
+    setRunMessage("Processing pending drafts with Groq llama-3.3-70b…");
+    try {
+      const res = await fetch("/api/swarm/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setRunMessage(
+          `Done: ${data.drafted}/${data.processed} drafts generated${data.telegramSent ? ` · ${data.telegramSent} pushed to Telegram` : ""}`
+        );
+        // Pull fresh data — a full reload is simpler than reconciling state
+        setTimeout(() => window.location.reload(), 1200);
+      } else {
+        setRunMessage(`Swarm failed: ${data.error ?? "unknown"}`);
+      }
+    } catch (err) {
+      setRunMessage(`Swarm error: ${err instanceof Error ? err.message : "unknown"}`);
+    } finally {
+      setRunningAll(false);
+      setTimeout(() => setRunMessage(null), 6000);
+    }
+  }
 
   async function handleAction(
     id: string,
@@ -293,12 +323,54 @@ export function SwarmClient({ replies: initial }: Props) {
   return (
     <div>
       {/* Header */}
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold tracking-tight">Swarm</h2>
-        <p className="text-muted-foreground text-sm mt-1">
-          Claude-drafted replies waiting for your review. Copy → paste to Reddit → mark posted.
-        </p>
+      <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight lf-scanline">
+            <span className="lf-dot lf-dot-orange mr-2" />
+            Swarm
+          </h2>
+          <p className="text-xs mt-2" style={{ color: "var(--lf-text-dim)" }}>
+            llama-3.3-70b reply drafter · Copy → paste to Reddit → mark posted
+          </p>
+        </div>
+
+        <button
+          onClick={handleGenerateAll}
+          disabled={runningAll || grouped.pending_draft.length === 0}
+          className={`lf-btn lf-btn-primary ${grouped.pending_draft.length > 0 && !runningAll ? "lf-btn-pulse" : ""}`}
+          title={
+            grouped.pending_draft.length === 0
+              ? "No pending drafts — queue one from /dashboard/radar"
+              : `Generate ${grouped.pending_draft.length} pending draft${grouped.pending_draft.length !== 1 ? "s" : ""}`
+          }
+        >
+          {runningAll ? (
+            <>
+              <div className="lf-radar" style={{ width: 16, height: 16 }}>
+                <div className="lf-radar-sweep" />
+              </div>
+              Generating…
+            </>
+          ) : (
+            <>
+              <Play size={12} /> Generate All Pending ({grouped.pending_draft.length})
+            </>
+          )}
+        </button>
       </div>
+
+      {runMessage && (
+        <div
+          className="mb-4 rounded-lg px-4 py-2.5 text-xs"
+          style={{
+            background: "rgba(255, 107, 0, 0.05)",
+            border: "1px solid var(--lf-border-hover)",
+            color: "var(--lf-orange)",
+          }}
+        >
+          {runMessage}
+        </div>
+      )}
 
       {/* Stats bar */}
       <div className="grid grid-cols-4 gap-3 mb-6">

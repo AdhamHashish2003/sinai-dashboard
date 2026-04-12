@@ -26,8 +26,10 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${inter.variable} ${jetbrainsMono.variable} font-sans antialiased bg-background text-foreground`}
+        className={`${inter.variable} ${jetbrainsMono.variable} font-mono antialiased bg-background text-foreground`}
       >
+        {/* Orbital Command star field — pure CSS, fixed z:-2 */}
+        <div className="lf-stars" aria-hidden="true" />
         <Providers>{children}</Providers>
       </body>
     </html>
