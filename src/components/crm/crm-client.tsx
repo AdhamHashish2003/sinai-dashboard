@@ -69,6 +69,7 @@ export function CrmClient({ products, leads: initial }: Props) {
   const [showAddForm, setShowAddForm] = useState(false);
   const [scoutRunning, setScoutRunning] = useState(false);
   const [scoutMessage, setScoutMessage] = useState<string | null>(null);
+  const [scoutSearchQuery, setScoutSearchQuery] = useState("");
   const pollRef = useRef<number | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
@@ -139,7 +140,9 @@ export function CrmClient({ products, leads: initial }: Props) {
       return;
     }
     setScoutRunning(true);
-    setScoutMessage("Submitting scout job to GhostCrew…");
+    setScoutMessage("Submitting scout job to Google Maps…");
+
+    const trimmedQuery = scoutSearchQuery.trim();
 
     try {
       const res = await fetch("/api/scout/run", {
@@ -147,18 +150,33 @@ export function CrmClient({ products, leads: initial }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           productId: productFilter,
-          targetType: "cslb_adu_builders",
           state: "CA",
-          limit: 200,
+          ...(trimmedQuery ? { searchQuery: trimmedQuery } : {}),
         }),
       });
 
       const body = await res.json();
 
-      if (!res.ok) {
-        setScoutMessage(`Scout failed: ${body.error ?? "unknown"}`);
+      if (!res.ok || body.success === false) {
+        const googleDetail = body.googleErrorMessage
+          ? ` (${body.googleStatus ?? "ERROR"}: ${body.googleErrorMessage})`
+          : body.googleStatus
+          ? ` (${body.googleStatus})`
+          : "";
+        setScoutMessage(`Scout failed: ${body.error ?? "unknown"}${googleDetail}`);
         setScoutRunning(false);
-        setTimeout(() => setScoutMessage(null), 6000);
+        setTimeout(() => setScoutMessage(null), 8000);
+        return;
+      }
+
+      if (typeof body.leadsCreated === "number") {
+        setScoutRunning(false);
+        setScoutMessage(
+          `Scout done — ${body.leadsCreated} leads added${
+            body.duplicatesSkipped ? `, ${body.duplicatesSkipped} dupes skipped` : ""
+          }. Reloading…`
+        );
+        setTimeout(() => window.location.reload(), 1200);
         return;
       }
 
@@ -238,6 +256,18 @@ export function CrmClient({ products, leads: initial }: Props) {
             </option>
           ))}
         </select>
+
+        <input
+          type="text"
+          value={scoutSearchQuery}
+          onChange={(e) => setScoutSearchQuery(e.target.value)}
+          placeholder="Search query (optional, e.g. ADU builder)"
+          disabled={scoutRunning}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !scoutRunning) handleRunScout();
+          }}
+          className="w-56 rounded-lg border border-border bg-card px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 disabled:opacity-50"
+        />
 
         <button
           onClick={handleRunScout}

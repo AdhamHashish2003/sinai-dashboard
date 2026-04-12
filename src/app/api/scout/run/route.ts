@@ -12,6 +12,7 @@ const RunSchema = z.object({
   state: z.string().min(2).max(2).default("CA"),
   city: z.string().max(100).nullable().optional(),
   limit: z.number().int().min(1).max(500).default(20),
+  searchQuery: z.string().trim().min(1).max(200).optional(),
 });
 
 const CITIES = [
@@ -75,11 +76,17 @@ interface GooglePlaceDetailsResponse {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+interface ScrapeResult {
+  leads: ScrapedLead[];
+  status: string;
+  errorMessage?: string;
+}
+
 async function scrapeGoogleMaps(
   city: string,
   state: string,
   query: string
-): Promise<ScrapedLead[]> {
+): Promise<ScrapeResult> {
   const apiKey = process.env.GOOGLE_MAPS_API_KEY;
   if (!apiKey) throw new Error("GOOGLE_MAPS_API_KEY not set");
 
@@ -96,7 +103,11 @@ async function scrapeGoogleMaps(
       `[scout] Google Maps status: ${searchData.status} for ${city} (${query})`,
       searchData.error_message ?? ""
     );
-    return [];
+    return {
+      leads: [],
+      status: searchData.status,
+      errorMessage: searchData.error_message,
+    };
   }
 
   const leads: ScrapedLead[] = [];
@@ -138,7 +149,7 @@ async function scrapeGoogleMaps(
     await sleep(100);
   }
 
-  return leads;
+  return { leads, status: "OK" };
 }
 
 function pickRandom<T>(arr: T[], n: number): T[] {
@@ -174,7 +185,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const { productId, targetType, state, city, limit } = parsed.data;
+    const { productId, targetType, state, city, limit, searchQuery } = parsed.data;
+    const queriesToRun = searchQuery ? [searchQuery] : QUERIES;
 
     const product = await db.product.findUnique({ where: { id: productId } });
     if (!product) {
@@ -201,19 +213,25 @@ export async function POST(request: Request) {
     const citiesScraped: string[] = [];
     let successfulSearches = 0;
     let totalSearches = 0;
+    let lastGoogleStatus: string | null = null;
+    let lastGoogleErrorMessage: string | null = null;
 
     for (const gCity of chosenCities) {
       console.log(`[scout] scraping Google Maps for ${gCity}, ${state}`);
       let cityHadResults = false;
-      for (const query of QUERIES) {
+      for (const query of queriesToRun) {
         totalSearches++;
         try {
-          const leads = await scrapeGoogleMaps(gCity, state, query);
+          const result = await scrapeGoogleMaps(gCity, state, query);
           console.log(
-            `[scout] ${gCity} / "${query}" → ${leads.length} results`
+            `[scout] ${gCity} / "${query}" → ${result.leads.length} results (status=${result.status})`
           );
-          if (leads.length > 0) {
-            allLeads.push(...leads);
+          if (result.status !== "OK") {
+            lastGoogleStatus = result.status;
+            lastGoogleErrorMessage = result.errorMessage ?? null;
+          }
+          if (result.leads.length > 0) {
+            allLeads.push(...result.leads);
             cityHadResults = true;
             successfulSearches++;
           }
@@ -222,6 +240,8 @@ export async function POST(request: Request) {
             `[scout] Google Maps failed ${gCity} / "${query}":`,
             err instanceof Error ? err.message : err
           );
+          lastGoogleErrorMessage =
+            err instanceof Error ? err.message : String(err);
         }
       }
       if (cityHadResults) citiesScraped.push(gCity);
@@ -232,8 +252,19 @@ export async function POST(request: Request) {
         where: { id: localJob.id },
         data: { status: "failed", completedAt: new Date() },
       });
+      const pieces = [
+        lastGoogleStatus ? `status=${lastGoogleStatus}` : null,
+        lastGoogleErrorMessage,
+      ].filter(Boolean);
+      const detail =
+        pieces.length > 0 ? pieces.join(" — ") : "no results from any city";
       return NextResponse.json(
-        { success: false, error: "Google Maps unavailable" },
+        {
+          success: false,
+          error: `Google Maps unavailable: ${detail}`,
+          googleStatus: lastGoogleStatus,
+          googleErrorMessage: lastGoogleErrorMessage,
+        },
         { status: 503 }
       );
     }
