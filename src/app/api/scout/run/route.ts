@@ -25,7 +25,21 @@ const CITIES = [
   "irvine-ca",
 ];
 
+// Plain display names aligned 1:1 with CITIES above, used for Google Places queries.
+const CITY_DISPLAY: Record<string, string> = {
+  "los-angeles-ca": "Los Angeles",
+  "san-jose-ca": "San Jose",
+  "san-francisco-ca": "San Francisco",
+  "san-diego-ca": "San Diego",
+  "sacramento-ca": "Sacramento",
+  "oakland-ca": "Oakland",
+  "anaheim-ca": "Anaheim",
+  "irvine-ca": "Irvine",
+};
+
 const SEARCHES = ["general-contractors", "adu-construction"];
+
+const GOOGLE_PLACES_PER_CITY = 10;
 
 const USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
@@ -85,6 +99,83 @@ async function scrapeYellowPages(
   }));
 }
 
+interface GooglePlace {
+  place_id: string;
+  name: string;
+  formatted_address?: string;
+}
+
+interface GooglePlacesResponse {
+  status: string;
+  results?: GooglePlace[];
+  error_message?: string;
+}
+
+interface GooglePlaceDetailsResponse {
+  status: string;
+  result?: { formatted_phone_number?: string };
+}
+
+async function searchGooglePlaces(
+  citySlug: string,
+  apiKey: string
+): Promise<ScrapedLead[]> {
+  const cityName = CITY_DISPLAY[citySlug] ?? citySlug;
+  const query = `ADU builder ${cityName} CA`;
+  const searchUrl =
+    `https://maps.googleapis.com/maps/api/place/textsearch/json` +
+    `?query=${encodeURIComponent(query)}&key=${encodeURIComponent(apiKey)}`;
+
+  const res = await fetch(searchUrl);
+  if (!res.ok) return [];
+  const data = (await res.json()) as GooglePlacesResponse;
+  if (data.status !== "OK" && data.status !== "ZERO_RESULTS") {
+    console.warn(
+      `[scout/run] google places status=${data.status} city=${citySlug}`,
+      data.error_message ?? ""
+    );
+    return [];
+  }
+  const places = (data.results ?? []).slice(0, GOOGLE_PLACES_PER_CITY);
+
+  const leads: ScrapedLead[] = [];
+  for (const place of places) {
+    // Place Details call — required for phone number (not in Text Search payload).
+    let phone = "";
+    try {
+      const detailsUrl =
+        `https://maps.googleapis.com/maps/api/place/details/json` +
+        `?place_id=${encodeURIComponent(place.place_id)}` +
+        `&fields=formatted_phone_number` +
+        `&key=${encodeURIComponent(apiKey)}`;
+      const dres = await fetch(detailsUrl);
+      if (dres.ok) {
+        const ddata = (await dres.json()) as GooglePlaceDetailsResponse;
+        phone = ddata.result?.formatted_phone_number ?? "";
+      }
+    } catch (err) {
+      console.warn(
+        "[scout/run] google details failed:",
+        err instanceof Error ? err.message : err
+      );
+    }
+    // Gentle pacing — Places default QPS is 10/sec.
+    await sleep(150);
+
+    leads.push({
+      name: place.name,
+      phone,
+      address: place.formatted_address ?? "",
+      city: cityName,
+      state: "CA",
+      source: "google_places",
+      sourceUrl: `google-places://${place.place_id}`,
+      searchQuery: "adu-builder",
+    });
+  }
+  return leads;
+}
+
 function pickRandom<T>(arr: T[], n: number): T[] {
   const copy = [...arr];
   for (let i = copy.length - 1; i > 0; i--) {
@@ -129,35 +220,59 @@ export async function POST(request: Request) {
       },
     });
 
-    // ── Real YellowPages scraping ──────────────────────────────────────────
+    // ── Source selection: Google Places (preferred) → YellowPages fallback ─
+    const googleKey = process.env.GOOGLE_MAPS_API_KEY;
+    const sourceUsed: "google_places" | "yellowpages" = googleKey
+      ? "google_places"
+      : "yellowpages";
+
     const chosenCities = pickRandom(CITIES, 3);
     const allLeads: ScrapedLead[] = [];
     const citiesScraped: string[] = [];
     let successfulRequests = 0;
     let totalRequests = 0;
-    let firstRequest = true;
 
-    for (const yCity of chosenCities) {
-      let cityHadResults = false;
-      for (const query of SEARCHES) {
-        if (!firstRequest) await sleep(2000);
-        firstRequest = false;
+    if (googleKey) {
+      for (const gCity of chosenCities) {
         totalRequests++;
         try {
-          const leads = await scrapeYellowPages(yCity, query);
+          const leads = await searchGooglePlaces(gCity, googleKey);
           if (leads.length > 0) {
             allLeads.push(...leads);
-            cityHadResults = true;
+            citiesScraped.push(gCity);
             successfulRequests++;
           }
         } catch (err) {
           console.warn(
-            `[scout/run] scrape failed ${yCity}/${query}:`,
+            `[scout/run] google places failed ${gCity}:`,
             err instanceof Error ? err.message : err
           );
         }
       }
-      if (cityHadResults) citiesScraped.push(yCity);
+    } else {
+      let firstRequest = true;
+      for (const yCity of chosenCities) {
+        let cityHadResults = false;
+        for (const query of SEARCHES) {
+          if (!firstRequest) await sleep(2000);
+          firstRequest = false;
+          totalRequests++;
+          try {
+            const leads = await scrapeYellowPages(yCity, query);
+            if (leads.length > 0) {
+              allLeads.push(...leads);
+              cityHadResults = true;
+              successfulRequests++;
+            }
+          } catch (err) {
+            console.warn(
+              `[scout/run] scrape failed ${yCity}/${query}:`,
+              err instanceof Error ? err.message : err
+            );
+          }
+        }
+        if (cityHadResults) citiesScraped.push(yCity);
+      }
     }
 
     if (successfulRequests === 0) {
@@ -166,7 +281,13 @@ export async function POST(request: Request) {
         data: { status: "failed", completedAt: new Date() },
       });
       return NextResponse.json(
-        { success: false, error: "YellowPages unavailable" },
+        {
+          success: false,
+          error:
+            sourceUsed === "google_places"
+              ? "Google Places unavailable"
+              : "YellowPages unavailable",
+        },
         { status: 503 }
       );
     }
@@ -189,7 +310,7 @@ export async function POST(request: Request) {
         await db.lead.create({
           data: {
             productId,
-            source: "yellowpages",
+            source: sourceUsed,
             sourceUrl: lead.sourceUrl,
             name: lead.name,
             email: null,
@@ -201,7 +322,7 @@ export async function POST(request: Request) {
             enrichmentJson: {
               phone: lead.phone,
               address: lead.address,
-              data_source: "yellowpages",
+              data_source: sourceUsed,
               scraped_at: scrapedAt,
               search_query: lead.searchQuery,
               target_type: targetType,
@@ -236,7 +357,7 @@ export async function POST(request: Request) {
       status: "done",
       leadsCreated: inserted,
       duplicatesSkipped,
-      source: "yellowpages",
+      source: sourceUsed,
       citiesScraped,
       requestsMade: totalRequests,
       successfulRequests,
