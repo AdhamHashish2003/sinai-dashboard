@@ -9,18 +9,18 @@ export interface Lead {
   productName: string;
   productSlug: string;
   source: string;
-  sourceUrl: string | null;
+  sourceUrl: string;
   name: string;
-  email: string | null;
-  company: string | null;
-  role: string | null;
-  city: string | null;
-  state: string | null;
+  email: string;
+  company: string;
+  role: string;
+  city: string;
+  state: string;
   enrichmentJson: Record<string, unknown>;
   status: string;
-  lastTouchAt: string | null;
+  lastTouchAt: string;
   replyReceived: boolean;
-  notes: string | null;
+  notes: string;
   createdAt: string;
 }
 

@@ -30,10 +30,10 @@ interface ProofPost {
   postedPlatforms: string[];
   draftVersions: Array<{ body: string; note?: string }>;
   status: string;
-  postedEngagement: number | null;
-  errorMessage: string | null;
-  scheduledFor: string | null;
-  postedAt: string | null;
+  postedEngagement: number;
+  errorMessage: string;
+  scheduledFor: string;
+  postedAt: string;
   createdAt: string;
 }
 
@@ -523,7 +523,7 @@ function PostCard({
               ))}
             </>
           )}
-          {post.postedEngagement != null && (
+          {post.postedEngagement > 0 && (
             <span className="ml-2 text-muted-foreground">
               · {post.postedEngagement} engagements
             </span>

@@ -39,9 +39,9 @@ interface Reply {
   draftVersions: DraftVersion[];
   status: string;
   platform: string;
-  notes: string | null;
+  notes: string;
   createdAt: string;
-  postedAt: string | null;
+  postedAt: string;
 }
 
 interface Props {

@@ -39,10 +39,10 @@ export default async function ContentPage() {
           ? (p.draftVersions as Array<{ body: string; note?: string }>)
           : [],
         status: p.status,
-        postedEngagement: p.postedEngagement,
-        errorMessage: p.errorMessage,
-        scheduledFor: p.scheduledFor?.toISOString() ?? null,
-        postedAt: p.postedAt?.toISOString() ?? null,
+        postedEngagement: p.postedEngagement ?? 0,
+        errorMessage: p.errorMessage ?? "",
+        scheduledFor: p.scheduledFor?.toISOString() ?? "",
+        postedAt: p.postedAt?.toISOString() ?? "",
         createdAt: p.createdAt.toISOString(),
       }))}
     />

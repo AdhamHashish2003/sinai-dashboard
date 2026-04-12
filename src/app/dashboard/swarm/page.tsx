@@ -43,9 +43,9 @@ export default async function SwarmPage() {
           : [],
         status: r.status,
         platform: r.platform,
-        notes: r.notes,
+        notes: r.notes ?? "",
         createdAt: r.createdAt.toISOString(),
-        postedAt: r.postedAt?.toISOString() ?? null,
+        postedAt: r.postedAt?.toISOString() ?? "",
       }))}
     />
   );

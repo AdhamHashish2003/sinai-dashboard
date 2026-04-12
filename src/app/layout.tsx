@@ -13,9 +13,38 @@ const jetbrainsMono = JetBrains_Mono({
   variable: "--font-jetbrains",
 });
 
+const SITE_URL = "https://sinai-dashboard-production.up.railway.app";
+
 export const metadata: Metadata = {
-  title: "LaunchForge",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: "LaunchForge",
+    template: "%s · LaunchForge",
+  },
   description: "Mission Control for Shipping SaaS",
+  alternates: {
+    canonical: SITE_URL,
+  },
+  openGraph: {
+    title: "LaunchForge",
+    description: "Mission Control for Shipping SaaS",
+    type: "website",
+    url: SITE_URL,
+    siteName: "LaunchForge",
+  },
+  twitter: {
+    card: "summary",
+    title: "LaunchForge",
+    description: "Mission Control for Shipping SaaS",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+    },
+  },
 };
 
 export default function RootLayout({
