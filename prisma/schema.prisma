@@ -76,6 +76,8 @@ model Product {
   updatedAt        DateTime @updatedAt
   signals          Signal[]
   replies          Reply[]
+  leads            Lead[]
+  scoutJobs        ScoutJob[]
 
   @@index([status])
 }
@@ -100,6 +102,52 @@ model Signal {
   @@unique([productId, sourceUrl])
   @@index([productId, score])
   @@index([status])
+  @@index([createdAt])
+}
+
+// ─── CRM: Leads + Scout Jobs ─────────────────────────────────────────────────
+
+model Lead {
+  id             String    @id @default(cuid())
+  productId      String
+  product        Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  source         String    // scout, radar, manual, inbound
+  sourceUrl      String?   // nullable — manual leads may have none
+  name           String
+  email          String?
+  company        String?
+  role           String?
+  city           String?
+  state          String?
+  enrichmentJson Json      @default("{}")
+  status         String    @default("new") // new, enriched, contacted, replied, trial, paid, dead
+  lastTouchAt    DateTime?
+  replyReceived  Boolean   @default(false)
+  notes          String?   @db.Text
+  createdAt      DateTime  @default(now())
+
+  @@unique([productId, sourceUrl])
+  @@index([productId, status])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model ScoutJob {
+  id             String    @id @default(cuid())
+  productId      String
+  product        Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  ghostcrewJobId String?
+  targetType     String    // cslb_adu_builders, permit_expediters, small_gcs
+  state          String
+  city           String?
+  limitCount     Int       @default(100)
+  status         String    @default("queued") // queued, running, done, failed
+  resultsCount   Int       @default(0)
+  error          String?   @db.Text
+  createdAt      DateTime  @default(now())
+  completedAt    DateTime?
+
+  @@index([productId, status])
   @@index([createdAt])
 }
 

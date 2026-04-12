@@ -1,18 +1,43 @@
-import { Users } from "lucide-react";
+import { db } from "@/lib/db";
+import { CrmClient } from "@/components/crm/crm-client";
 
-export default function CrmPage() {
+export default async function CrmPage() {
+  const [leads, products] = await Promise.all([
+    db.lead.findMany({
+      include: { product: { select: { id: true, name: true, slug: true } } },
+      orderBy: { createdAt: "desc" },
+      take: 1000,
+    }),
+    db.product.findMany({
+      where: { status: "active" },
+      select: { id: true, name: true, slug: true },
+      orderBy: { name: "asc" },
+    }),
+  ]);
+
   return (
-    <div>
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold tracking-tight">CRM</h2>
-        <p className="text-muted-foreground text-sm mt-1">
-          Customer relationship management and lead tracking. Coming soon.
-        </p>
-      </div>
-      <div className="rounded-xl border border-dashed border-border py-16 text-center">
-        <Users size={32} className="mx-auto text-muted-foreground mb-3" />
-        <p className="text-sm text-muted-foreground">CRM module launching soon.</p>
-      </div>
-    </div>
+    <CrmClient
+      products={products}
+      leads={leads.map((l) => ({
+        id: l.id,
+        productId: l.productId,
+        productName: l.product.name,
+        productSlug: l.product.slug,
+        source: l.source,
+        sourceUrl: l.sourceUrl,
+        name: l.name,
+        email: l.email,
+        company: l.company,
+        role: l.role,
+        city: l.city,
+        state: l.state,
+        enrichmentJson: (l.enrichmentJson as Record<string, unknown>) ?? {},
+        status: l.status,
+        lastTouchAt: l.lastTouchAt?.toISOString() ?? null,
+        replyReceived: l.replyReceived,
+        notes: l.notes,
+        createdAt: l.createdAt.toISOString(),
+      }))}
+    />
   );
 }
