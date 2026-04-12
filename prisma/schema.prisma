@@ -62,7 +62,7 @@ model Product {
   slug             String   @unique
   name             String
   tagline          String?
-  status           String   @default("idea") // idea, building, launched, retired
+  status           String   @default("idea") // idea, building, launched, active, retired
   icp              String?  // ideal customer profile
   targetKeywords   String[] @default([])
   targetSubreddits String[] @default([])
@@ -74,8 +74,31 @@ model Product {
   telegramChatId   String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+  signals          Signal[]
 
   @@index([status])
+}
+
+// ─── Radar Signals ───────────────────────────────────────────────────────────
+
+model Signal {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  source    String   // reddit, hackernews
+  sourceUrl String
+  title     String
+  body      String   @db.Text
+  author    String
+  score     Int
+  reason    String
+  status    String   @default("new") // new, approved, dismissed, ready_to_draft
+  createdAt DateTime @default(now())
+
+  @@unique([productId, sourceUrl])
+  @@index([productId, score])
+  @@index([status])
+  @@index([createdAt])
 }
 
 // ─── SaaS Analytics ──────────────────────────────────────────────────────────

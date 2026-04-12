@@ -79,6 +79,7 @@ async function main() {
   console.log("Seeding database...");
 
   // Clean all tables
+  await db.signal.deleteMany();
   await db.product.deleteMany();
   await db.connectionMetric.deleteMany();
   await db.webMetric.deleteMany();
@@ -104,10 +105,10 @@ async function main() {
       slug: "permit-ai",
       name: "PermitAI",
       tagline: "AI-powered building permit reviews in minutes, not weeks",
-      status: "building",
-      icp: "Municipal building departments processing 500+ permits/year",
-      targetKeywords: ["ai building permit", "automated plan review", "permit management software"],
-      targetSubreddits: ["r/civilengineering", "r/AEC", "r/construction"],
+      status: "active",
+      icp: "Municipal building departments processing 500+ permits/year, contractors filing 10+ permits/month, ADU builders navigating local codes",
+      targetKeywords: ["ai building permit", "automated plan review", "permit management software", "building permit slow", "permit approval time"],
+      targetSubreddits: ["r/civilengineering", "r/AEC", "r/construction", "r/ADU", "r/Contractors"],
       valueProp: "Cut permit review time from 3 weeks to 3 hours with AI that understands local building codes",
       freeTierHook: "5 free permit reviews/month",
       prodUrl: "https://permit-ai.com",

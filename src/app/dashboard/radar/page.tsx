@@ -1,18 +1,38 @@
-import { Radar } from "lucide-react";
+import { db } from "@/lib/db";
+import { RadarClient } from "@/components/radar/radar-client";
 
-export default function RadarPage() {
+export default async function RadarPage() {
+  const [signals, products] = await Promise.all([
+    db.signal.findMany({
+      include: { product: { select: { id: true, name: true, slug: true } } },
+      orderBy: { createdAt: "desc" },
+      take: 200,
+    }),
+    db.product.findMany({
+      where: { status: "active" },
+      select: { id: true, name: true, slug: true },
+      orderBy: { name: "asc" },
+    }),
+  ]);
+
   return (
-    <div>
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold tracking-tight">Radar</h2>
-        <p className="text-muted-foreground text-sm mt-1">
-          Market intelligence and competitor tracking. Coming soon.
-        </p>
-      </div>
-      <div className="rounded-xl border border-dashed border-border py-16 text-center">
-        <Radar size={32} className="mx-auto text-muted-foreground mb-3" />
-        <p className="text-sm text-muted-foreground">Radar module launching soon.</p>
-      </div>
-    </div>
+    <RadarClient
+      signals={signals.map((s) => ({
+        id: s.id,
+        productId: s.productId,
+        productName: s.product.name,
+        productSlug: s.product.slug,
+        source: s.source,
+        sourceUrl: s.sourceUrl,
+        title: s.title,
+        body: s.body,
+        author: s.author,
+        score: s.score,
+        reason: s.reason,
+        status: s.status,
+        createdAt: s.createdAt.toISOString(),
+      }))}
+      products={products}
+    />
   );
 }
