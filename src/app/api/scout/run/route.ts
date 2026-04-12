@@ -14,17 +14,86 @@ const RunSchema = z.object({
   limit: z.number().int().min(1).max(500).default(20),
 });
 
-/**
- * POST /api/scout/run
- *
- * Self-contained scout — drops the GhostCrew dependency that doesn't exist
- * yet. Generates realistic CSLB-licensed ADU builder leads (deterministic
- * mock data using real California cities and plausible business names),
- * saves them to the Lead table, and returns the job summary.
- *
- * When CSLB scraping or Google Maps Places becomes available, swap the
- * MOCK_BUILDERS source for a real fetcher — the rest of the route is unchanged.
- */
+const CITIES = [
+  "los-angeles-ca",
+  "san-jose-ca",
+  "san-francisco-ca",
+  "san-diego-ca",
+  "sacramento-ca",
+  "oakland-ca",
+  "anaheim-ca",
+  "irvine-ca",
+];
+
+const SEARCHES = ["general-contractors", "adu-construction"];
+
+const USER_AGENT =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+
+interface ScrapedLead {
+  name: string;
+  phone: string;
+  address: string;
+  city: string;
+  state: string;
+  source: string;
+  sourceUrl: string;
+  searchQuery: string;
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+async function scrapeYellowPages(
+  city: string,
+  query: string
+): Promise<ScrapedLead[]> {
+  const url = `https://www.yellowpages.com/${city}/${query}`;
+  const res = await fetch(url, {
+    headers: { "User-Agent": USER_AGENT },
+  });
+  if (!res.ok) return [];
+  const html = await res.text();
+
+  const names = Array.from(
+    html.matchAll(/class="business-name"[^>]*>.*?<[^>]*>([^<]+)</g),
+    (m) => m[1].trim()
+  );
+  const phones = Array.from(
+    html.matchAll(/class="phones[^"]*"[^>]*>([^<]+)</g),
+    (m) => m[1].trim()
+  );
+  const addresses = Array.from(
+    html.matchAll(/class="street-address"[^>]*>([^<]+)</g),
+    (m) => m[1].trim()
+  );
+  const localities = Array.from(
+    html.matchAll(/class="locality"[^>]*>([^<]+)</g),
+    (m) => m[1].trim()
+  );
+
+  return names.map((name, i) => ({
+    name,
+    phone: phones[i] || "",
+    address: addresses[i] || "",
+    city: localities[i]?.replace(/,.*/, "").trim() || city.split("-")[0],
+    state: "CA",
+    source: "yellowpages",
+    sourceUrl: `yellowpages://${city}/${query}/${name
+      .toLowerCase()
+      .replace(/\s+/g, "-")}`,
+    searchQuery: query,
+  }));
+}
+
+function pickRandom<T>(arr: T[], n: number): T[] {
+  const copy = [...arr];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy.slice(0, n);
+}
+
 export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -46,7 +115,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Product not found" }, { status: 404 });
     }
 
-    // Create a local ScoutJob row for tracking + audit trail
+    // Purge legacy mock leads from earlier versions of this endpoint.
+    await db.lead.deleteMany({ where: { source: "cslb_mock" } });
+
     const localJob = await db.scoutJob.create({
       data: {
         productId,
@@ -58,43 +129,95 @@ export async function POST(request: Request) {
       },
     });
 
-    // ── Generate leads ─────────────────────────────────────────────────────
-    // For now: deterministic mock data clearly marked source="cslb_mock".
-    // Replace with real CSLB / Google Maps Places fetch when keys are wired.
-    const leads = generateMockCslbLeads(targetType, state, limit);
+    // ── Real YellowPages scraping ──────────────────────────────────────────
+    const chosenCities = pickRandom(CITIES, 3);
+    const allLeads: ScrapedLead[] = [];
+    const citiesScraped: string[] = [];
+    let successfulRequests = 0;
+    let totalRequests = 0;
+    let firstRequest = true;
 
-    // ── Insert with dedup ──────────────────────────────────────────────────
+    for (const yCity of chosenCities) {
+      let cityHadResults = false;
+      for (const query of SEARCHES) {
+        if (!firstRequest) await sleep(2000);
+        firstRequest = false;
+        totalRequests++;
+        try {
+          const leads = await scrapeYellowPages(yCity, query);
+          if (leads.length > 0) {
+            allLeads.push(...leads);
+            cityHadResults = true;
+            successfulRequests++;
+          }
+        } catch (err) {
+          console.warn(
+            `[scout/run] scrape failed ${yCity}/${query}:`,
+            err instanceof Error ? err.message : err
+          );
+        }
+      }
+      if (cityHadResults) citiesScraped.push(yCity);
+    }
+
+    if (successfulRequests === 0) {
+      await db.scoutJob.update({
+        where: { id: localJob.id },
+        data: { status: "failed", completedAt: new Date() },
+      });
+      return NextResponse.json(
+        { success: false, error: "YellowPages unavailable" },
+        { status: 503 }
+      );
+    }
+
+    // Dedup within batch by sourceUrl
+    const seen = new Set<string>();
+    const unique = allLeads.filter((l) => {
+      if (seen.has(l.sourceUrl)) return false;
+      seen.add(l.sourceUrl);
+      return true;
+    });
+
+    // ── Insert with dedup against DB ───────────────────────────────────────
     let inserted = 0;
-    for (const lead of leads) {
+    let duplicatesSkipped = 0;
+    const scrapedAt = new Date().toISOString();
+
+    for (const lead of unique.slice(0, limit)) {
       try {
         await db.lead.create({
           data: {
             productId,
-            source: "cslb_mock",
+            source: "yellowpages",
             sourceUrl: lead.sourceUrl,
             name: lead.name,
             email: null,
-            company: lead.company,
+            company: lead.name,
             role: "Owner / Operator",
             city: lead.city,
             state: lead.state,
             status: "new",
             enrichmentJson: {
-              license_number: lead.licenseNumber,
               phone: lead.phone,
-              classification: lead.classification,
-              license_status: "active",
-              email_status: "cslb_only",
-              data_source: "cslb_mock_v1",
-              note: "Replace with real CSLB scrape or Google Maps Places when available",
+              address: lead.address,
+              data_source: "yellowpages",
+              scraped_at: scrapedAt,
+              search_query: lead.searchQuery,
+              target_type: targetType,
             },
           },
         });
         inserted++;
       } catch (err) {
-        // P2002 = unique constraint on (productId, sourceUrl), safe to skip
-        if (err instanceof Error && err.message.includes("P2002")) continue;
-        console.warn("[scout/run] insert skipped:", err instanceof Error ? err.message : err);
+        if (err instanceof Error && err.message.includes("P2002")) {
+          duplicatesSkipped++;
+          continue;
+        }
+        console.warn(
+          "[scout/run] insert skipped:",
+          err instanceof Error ? err.message : err
+        );
       }
     }
 
@@ -112,8 +235,11 @@ export async function POST(request: Request) {
       jobId: localJob.id,
       status: "done",
       leadsCreated: inserted,
-      duplicatesSkipped: leads.length - inserted,
-      source: "cslb_mock_v1",
+      duplicatesSkipped,
+      source: "yellowpages",
+      citiesScraped,
+      requestsMade: totalRequests,
+      successfulRequests,
     });
   } catch (err) {
     console.error("[scout/run] error:", err);
@@ -122,96 +248,4 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
-}
-
-// ── Mock data generation ────────────────────────────────────────────────────
-
-interface MockLead {
-  name: string;
-  company: string;
-  licenseNumber: string;
-  phone: string;
-  city: string;
-  state: string;
-  classification: string;
-  sourceUrl: string;
-}
-
-const CA_CITIES = [
-  "Los Angeles", "San Diego", "San Jose", "San Francisco", "Sacramento",
-  "Long Beach", "Oakland", "Bakersfield", "Anaheim", "Santa Ana",
-  "Riverside", "Stockton", "Irvine", "Fremont", "Modesto",
-  "Pasadena", "Berkeley", "Glendale", "Huntington Beach", "Santa Clarita",
-];
-
-const FIRST_NAMES = [
-  "Carlos", "Miguel", "David", "Robert", "James", "Michael", "Steven", "Daniel",
-  "Christopher", "Anthony", "Mark", "Paul", "Kenneth", "Brian", "Jose",
-  "Eduardo", "Frank", "Tom", "Greg", "Scott",
-];
-
-const LAST_NAMES = [
-  "Garcia", "Rodriguez", "Martinez", "Hernandez", "Lopez", "Gonzalez", "Wilson",
-  "Anderson", "Thompson", "Walker", "Phillips", "Campbell", "Mitchell", "Roberts",
-  "Carter", "Murphy", "Bailey", "Cooper", "Reed", "Bell",
-];
-
-const COMPANY_SUFFIXES = [
-  "Construction", "Builders", "Contracting", "Construction Inc",
-  "ADU Specialists", "Home Solutions", "Custom Homes", "& Sons Construction",
-  "Building Co", "Design Build", "Renovations", "Contracting LLC",
-];
-
-/**
- * Deterministic mock generator. Uses a seeded shuffle so repeated calls in
- * the same minute return overlapping leads (which the dedup catches), but
- * across days the names rotate.
- */
-function generateMockCslbLeads(
-  targetType: string,
-  state: string,
-  count: number
-): MockLead[] {
-  const leads: MockLead[] = [];
-  const usedLicenses = new Set<string>();
-  const today = new Date().toISOString().slice(0, 10); // for source URL uniqueness
-
-  for (let i = 0; i < count; i++) {
-    const firstName = FIRST_NAMES[(i * 7 + 3) % FIRST_NAMES.length];
-    const lastName = LAST_NAMES[(i * 11 + 5) % LAST_NAMES.length];
-    const cityName = CA_CITIES[(i * 3) % CA_CITIES.length];
-    const suffix = COMPANY_SUFFIXES[(i * 5) % COMPANY_SUFFIXES.length];
-
-    // CSLB license numbers are 6 digits — generate plausibly unique ones
-    let licenseNumber: string;
-    do {
-      const base = 700000 + ((i * 137 + Date.now() % 100000) % 299999);
-      licenseNumber = String(base);
-    } while (usedLicenses.has(licenseNumber));
-    usedLicenses.add(licenseNumber);
-
-    const areaCode =
-      cityName.includes("San Francisco") || cityName.includes("Oakland") ? "415"
-      : cityName.includes("Los Angeles") || cityName.includes("Pasadena") || cityName.includes("Glendale") ? "213"
-      : cityName.includes("San Diego") ? "619"
-      : cityName.includes("San Jose") || cityName.includes("Fremont") ? "408"
-      : cityName.includes("Sacramento") ? "916"
-      : "714";
-
-    const phone = `(${areaCode}) ${555}-${String(1000 + ((i * 47) % 8999)).padStart(4, "0")}`;
-
-    leads.push({
-      name: `${firstName} ${lastName}`,
-      company: `${lastName} ${suffix}`,
-      licenseNumber,
-      phone,
-      city: cityName,
-      state,
-      classification: targetType === "cslb_adu_builders" ? "B - General Building" : "C-? Specialty",
-      // Stable per-license URL — guarantees dedup works across runs
-      sourceUrl: `https://www2.cslb.ca.gov/OnlineServices/CheckLicenseII/LicenseDetail.aspx?LicNum=${licenseNumber}&_d=${today}`,
-    });
-  }
-
-  return leads;
 }
