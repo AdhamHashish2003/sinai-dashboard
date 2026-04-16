@@ -336,6 +336,7 @@ export function RadarClient({ signals: initial, products }: Props) {
                       disabled={updatingId === s.id}
                       className="flex items-center justify-center rounded-md border border-border px-2 py-1.5 text-[10px] text-red-400 hover:bg-red-400/10 hover:border-red-400/30 transition-colors disabled:opacity-50"
                       title="Dismiss"
+                      aria-label="Dismiss signal"
                     >
                       <X size={11} />
                     </button>
@@ -346,6 +347,7 @@ export function RadarClient({ signals: initial, products }: Props) {
                     rel="noopener noreferrer"
                     className="flex items-center justify-center rounded-md border border-border px-2 py-1.5 text-[10px] text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
                     title="Open source"
+                    aria-label="Open source URL in new tab"
                   >
                     <ExternalLink size={11} />
                   </a>

@@ -158,6 +158,8 @@ function ConnectionCard({
           onClick={onDelete}
           disabled={isDeleting}
           className="flex items-center justify-center rounded-md border border-border px-2.5 py-1.5 text-xs text-red-400 hover:bg-red-400/10 hover:border-red-400/30 transition-colors disabled:opacity-50"
+          aria-label={`Delete ${conn.platform} connection @${conn.username}`}
+          title="Delete connection"
         >
           <Trash2 size={12} />
         </button>

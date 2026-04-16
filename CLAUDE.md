@@ -236,6 +236,7 @@ Railway uses `Procfile` / `railway.toml`. The worker `Dockerfile`s are thin Pyth
 5. **Pull + migrate reminder**: always run `prisma db push` or `prisma migrate deploy` after pulling — schema is fast-moving (8 new Product fields landed in `20260416000000_add_launch_fields`).
 6. **Python workers use raw SQL** in `workers/*/db.py` — schema renames can break them silently (no Prisma client in Python). Cross-check `db.py` when editing `prisma/schema.prisma`.
 7. **Env gate for dev login**: `CredentialsProvider` is only enabled when `NODE_ENV !== "production"` OR `ENABLE_DEV_LOGIN === "true"`. Don't accidentally enable it on prod.
+8. **Demo data ages**: `SaasMetric` / `SocialMetric` timestamps are set by the seed. Once the seed runs, chart dates freeze — a dashboard looking at "last 30 days" starts looking empty over time. Fix: `POST /api/admin/refresh-demo-data` (auth-gated) shifts every row so the latest `recordedAt` lands on today. Run it on deploy, or wire as a daily Railway cron until real webhook ingest replaces the seed data.
 
 ---
 
