@@ -28,9 +28,9 @@ npm run dev                    # default Next.js port is 3000
 # README mentions 3002 — that's from an older config; dev defaults to 3000
 ```
 
-**Tests:** `jest.config.ts` is configured but there's no `"test"` script in `package.json`. Run with `npx jest` directly.
+**Tests:** `jest.config.ts` is configured, no `"test"` script. Run with `npx jest` directly. Jest + `@types/jest` + `ts-jest` + `jest-environment-jsdom` are in `devDependencies`; `npm install` pulls them.
 
-**Lint:** `npm run lint` (next lint).
+**Lint:** `npm run lint` (next lint). Known issue: on Node 25+ the shorthand `next/core-web-vitals` sometimes fails to resolve. Workaround pending.
 
 ---
 
@@ -71,7 +71,8 @@ npm run dev                    # default Next.js port is 3000
 | `/dashboard/content-farm` | Social account grid |
 | `/dashboard/connections` | Auto-linking config (30-min refresh) |
 | `/dashboard/metrics/{saas,instagram,analytics}` | Sub-dashboards |
-| `/dashboard/seo` | Placeholder |
+| `/dashboard/seo` | Keyword rankings table (position, change-since-last-snapshot) |
+| `/dashboard/launches/new` | **Launch Wizard** — paragraph → full Product config in ~15s |
 
 ### API routes (`src/app/api/`)
 
@@ -185,7 +186,18 @@ Turn a freeform paragraph into a fully configured Product row.
 - Fields it fills on `Product`: existing `name/slug/tagline/icp/valueProp/freeTierHook/targetSubreddits/targetKeywords` + new `scoutState/scoutCities/scoutQueries/contentPostTypes/contentTopics/launchedAt/launchSeed/launchModel`
 - Scout route (`src/app/api/scout/run/route.ts`) prefers `product.scoutQueries` / `scoutCities` / `scoutState` when set, falling back to hardcoded `QUERIES` / `CITIES` / request `state` for backwards compat with PermitAI.
 
-Typical launch: paste paragraph → click "Fill with AI" → review 4 collapsible sections → click "Launch" → redirected to `/dashboard/radar?product=<id>`. Total time ~15 seconds.
+Typical launch: paste paragraph → click "Fill with AI" → review 4 collapsible sections → click "Launch" → redirected to `/dashboard/products?just_launched=<slug>` with a green success banner and "Run Radar now" / "Run Scout now" shortcuts. Total time ~15 seconds.
+
+**Design + plan**: `docs/superpowers/specs/2026-04-15-launch-wizard-design.md` + `docs/superpowers/plans/2026-04-15-launch-wizard.md`.
+
+### Launch Health strip (Products page)
+
+Each product card on `/dashboard/products` shows a 3-slot health strip with freshness dots:
+- **Radar** — last signal timestamp + signals-in-last-24h count
+- **CRM** — last lead timestamp + last-scout-results-count
+- **Content** — last ProofPost timestamp
+
+Dot colors: green = last 24h, amber = 24-72h, grey = never/older. Queries batched server-side in `src/app/dashboard/products/page.tsx`.
 
 ---
 
@@ -197,6 +209,8 @@ Typical launch: paste paragraph → click "Fill with AI" → review 4 collapsibl
 - **Zod schemas** for all env + webhook payload validation.
 - **Dark mode** via `next-themes`; charts and UI check `useTheme()` directly.
 - **Widget order persists in localStorage** — this is by design, not a DB write.
+- **Auth guards on data-fetching server components**: `src/app/dashboard/layout.tsx` redirects unauthed users, but server components in pages run in parallel with the layout — add `getServerSession(authOptions)` + `if (!session) redirect("/")` at the top of any `page.tsx` that queries Prisma. See `src/app/dashboard/products/page.tsx` / `src/app/dashboard/seo/page.tsx` / `src/app/dashboard/launches/new/page.tsx` for the pattern.
+- **No synthetic metrics**: return `0` or `null` when we can't compute something for real (see `src/lib/integrations/instagram.ts` — previously fabricated engagement rate). Users treat UI numbers as ground truth.
 
 ---
 
@@ -215,14 +229,13 @@ Railway uses `Procfile` / `railway.toml`. The worker `Dockerfile`s are thin Pyth
 
 ## Known gotchas
 
-1. **`.claude/launch.json`** previously had Windows paths — fixed. If it regresses, update `runtimeExecutable` to `npm` and `runtimeArgs` to `["run", "dev"]`.
-2. **README.md says port 3002**, actual `next dev` default is 3000. Either the README is stale or the user needs a `-p 3002` flag.
-3. **Docker Postgres maps host 5433 → container 5432.** Connection strings must use `:5433`.
-4. **Socket.IO uses the pages router** (`src/pages/api/socket.ts`), not app router — don't move it.
-5. **Groq rate limit** in swarm: 5 drafts/min → 12s sleep between calls (hardcoded `RATE_LIMIT_DELAY = 12`).
-6. **Recent migrations in `prisma/migrations/`** — always run `prisma db push` or `prisma migrate dev` after pulling.
-7. **Scout migration (April 2026):** Dropped YellowPages entirely → Google Places API only. See commits `4452867`, `cc80b31`, `84858be`, `53107e2`. Custom search queries + surfaced errors in last commit.
-8. **Ship Inspector Grade A fixes:** Commit `006c05f` landed 7 bug fixes. When debugging, check that commit before reintroducing fixed issues.
+1. **README.md says port 3002**, actual `next dev` default is 3000. Either stale README or the user wants `-p 3002`.
+2. **Docker Postgres maps host 5433 → container 5432.** Connection strings must use `:5433`.
+3. **Socket.IO uses the pages router** (`src/pages/api/socket.ts`), not app router — don't move it.
+4. **Groq rate limit** in swarm: 5 drafts/min → 12s sleep between calls (hardcoded `RATE_LIMIT_DELAY = 12`).
+5. **Pull + migrate reminder**: always run `prisma db push` or `prisma migrate deploy` after pulling — schema is fast-moving (8 new Product fields landed in `20260416000000_add_launch_fields`).
+6. **Python workers use raw SQL** in `workers/*/db.py` — schema renames can break them silently (no Prisma client in Python). Cross-check `db.py` when editing `prisma/schema.prisma`.
+7. **Env gate for dev login**: `CredentialsProvider` is only enabled when `NODE_ENV !== "production"` OR `ENABLE_DEV_LOGIN === "true"`. Don't accidentally enable it on prod.
 
 ---
 
@@ -257,4 +270,7 @@ done
 - `README.md` — user-facing quick start
 - `DEPLOYMENT.md` — Railway service-by-service deploy checklist
 - `.env.example` — env var template
-- `.promptforge_state.md` — historical build notes (probably stale)
+- `BUGS.md` — triage log + fix rationale (living doc)
+- `docs/superpowers/specs/` — feature design specs (approved before implementation)
+- `docs/superpowers/plans/` — step-by-step implementation plans
+- `.promptforge_state.md` — historical build notes (stale)
