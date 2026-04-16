@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import { db } from "./db";
 import { fetchInstagramProfile } from "./integrations/instagram";
 import { fetchYouTubeChannel } from "./integrations/youtube";
 import { fetchTikTokProfile } from "./integrations/tiktok";
@@ -13,10 +13,6 @@ type ConnectionRow = {
   lastFetchedAt: Date | null;
   refreshIntervalMinutes: number;
 };
-
-const globalForDb = globalThis as unknown as { refreshDb: PrismaClient | undefined };
-const db = globalForDb.refreshDb ?? new PrismaClient();
-if (process.env.NODE_ENV !== "production") globalForDb.refreshDb = db;
 
 /**
  * Try to fetch real data for a social connection.

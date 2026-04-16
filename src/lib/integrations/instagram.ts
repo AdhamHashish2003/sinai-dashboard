@@ -55,9 +55,6 @@ export async function fetchInstagramProfile(username: string): Promise<Instagram
 
     const json = await res.json();
 
-    // Debug: log raw API response so we can verify what's coming back
-    console.log(`[instagram] Raw API response for ${handle}:`, JSON.stringify(json, null, 2));
-
     const d = (json as { data?: Record<string, unknown> }).data as {
       id?: string;
       username?: string;

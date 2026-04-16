@@ -10,8 +10,14 @@ const payloadSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  // Fail closed if WEBHOOK_SECRET is unset or empty — don't accept empty-header
+  // requests through equality with an undefined/empty env var.
+  const expected = process.env.WEBHOOK_SECRET;
+  if (!expected) {
+    return NextResponse.json({ error: "Webhooks not configured" }, { status: 503 });
+  }
   const secret = req.headers.get("x-webhook-secret");
-  if (secret !== process.env.WEBHOOK_SECRET) {
+  if (secret !== expected) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

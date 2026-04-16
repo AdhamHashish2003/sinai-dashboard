@@ -1,35 +1,64 @@
 import { NextResponse } from "next/server";
-import { writeFileSync, readFileSync, existsSync } from "fs";
-import { join } from "path";
+import { cookies } from "next/headers";
 
-const SHOPIFY_STORE = "sands-new.myshopify.com";
-const CLIENT_ID = "eeb8b01d9238269852b65dd6cc3a54e4";
+/**
+ * Shopify OAuth callback.
+ *
+ * - Validates `state` cookie to defend against CSRF.
+ * - Exchanges `code` for an access token via Shopify.
+ * - Does NOT render the token to the browser.
+ * - Does NOT write secrets to the filesystem (fails on read-only runtimes
+ *   like Railway / Vercel, and leaks secrets into container volumes).
+ *
+ * The token is returned in an HttpOnly cookie that subsequent server-side
+ * handlers can read to call Shopify on behalf of the user. For permanent
+ * store-wide tokens, copy the value from logs on first run and set
+ * SHOPIFY_ACCESS_TOKEN in your env store (Railway / Vercel).
+ */
+
+function errorPage(title: string, body: string, status = 500) {
+  return new NextResponse(
+    `<html><body style="font-family:system-ui;padding:32px;background:#0a0a0a;color:#fafafa"><h1>${title}</h1><p>${body}</p></body></html>`,
+    { status, headers: { "Content-Type": "text/html" } }
+  );
+}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
+  const returnedState = searchParams.get("state");
 
-  if (!code) {
-    return new NextResponse(
-      "<html><body><h1>Error</h1><p>No code parameter received from Shopify.</p></body></html>",
-      { status: 400, headers: { "Content-Type": "text/html" } }
-    );
-  }
-
+  const storeDomain = process.env.SHOPIFY_STORE_DOMAIN;
+  const clientId = process.env.SHOPIFY_CLIENT_ID;
   const clientSecret = process.env.SHOPIFY_CLIENT_SECRET;
-  if (!clientSecret) {
-    return new NextResponse(
-      "<html><body><h1>Error</h1><p>SHOPIFY_CLIENT_SECRET is not set in environment variables. Add it to .env.local and restart the dev server.</p></body></html>",
-      { status: 500, headers: { "Content-Type": "text/html" } }
+
+  if (!storeDomain || !clientId || !clientSecret) {
+    return errorPage(
+      "Shopify not configured",
+      "Set SHOPIFY_STORE_DOMAIN, SHOPIFY_CLIENT_ID, and SHOPIFY_CLIENT_SECRET in your environment."
     );
   }
 
-  // Exchange code for access token
-  const tokenRes = await fetch(`https://${SHOPIFY_STORE}/admin/oauth/access_token`, {
+  if (!code) return errorPage("Error", "No code parameter received.", 400);
+
+  // ── CSRF: verify state matches the cookie set on /api/auth/shopify ─────────
+  const jar = cookies();
+  const expectedState = jar.get("shopify_oauth_state")?.value;
+  jar.delete("shopify_oauth_state");
+  if (!expectedState || !returnedState || expectedState !== returnedState) {
+    return errorPage(
+      "Invalid state",
+      "OAuth state mismatch — possible CSRF. Start the flow again.",
+      400
+    );
+  }
+
+  // ── Exchange code for access token ─────────────────────────────────────────
+  const tokenRes = await fetch(`https://${storeDomain}/admin/oauth/access_token`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      client_id: CLIENT_ID,
+      client_id: clientId,
       client_secret: clientSecret,
       code,
     }),
@@ -37,42 +66,22 @@ export async function GET(request: Request) {
 
   if (!tokenRes.ok) {
     const errorText = await tokenRes.text();
-    return new NextResponse(
-      `<html><body><h1>Token Exchange Failed</h1><p>Status: ${tokenRes.status}</p><pre>${errorText}</pre></body></html>`,
-      { status: 500, headers: { "Content-Type": "text/html" } }
-    );
+    console.error("[shopify] token exchange failed:", tokenRes.status, errorText);
+    return errorPage("Token exchange failed", `Status ${tokenRes.status}. See server logs.`, 500);
   }
 
-  const tokenData = await tokenRes.json() as { access_token: string; scope: string };
-  const accessToken = tokenData.access_token;
+  const tokenData = (await tokenRes.json()) as { access_token: string; scope: string };
 
-  // Save to .shopify-token file
-  const projectRoot = process.cwd();
-  const tokenFilePath = join(projectRoot, ".shopify-token");
-  writeFileSync(tokenFilePath, accessToken, "utf-8");
+  // Store token in an HttpOnly cookie — visible to server code only.
+  jar.set("shopify_access_token", tokenData.access_token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+  });
 
-  // Append/update SHOPIFY_ACCESS_TOKEN and SHOPIFY_STORE_DOMAIN in .env.local
-  const envPath = join(projectRoot, ".env.local");
-  let envContent = "";
-  if (existsSync(envPath)) {
-    envContent = readFileSync(envPath, "utf-8");
-  }
-
-  // Update or append SHOPIFY_ACCESS_TOKEN
-  if (envContent.includes("SHOPIFY_ACCESS_TOKEN=")) {
-    envContent = envContent.replace(/SHOPIFY_ACCESS_TOKEN=.*/g, `SHOPIFY_ACCESS_TOKEN=${accessToken}`);
-  } else {
-    envContent += `\n# Shopify (auto-configured via OAuth)\nSHOPIFY_ACCESS_TOKEN=${accessToken}\n`;
-  }
-
-  // Update or append SHOPIFY_STORE_DOMAIN
-  if (envContent.includes("SHOPIFY_STORE_DOMAIN=")) {
-    envContent = envContent.replace(/SHOPIFY_STORE_DOMAIN=.*/g, `SHOPIFY_STORE_DOMAIN=${SHOPIFY_STORE}`);
-  } else {
-    envContent += `SHOPIFY_STORE_DOMAIN=${SHOPIFY_STORE}\n`;
-  }
-
-  writeFileSync(envPath, envContent, "utf-8");
+  // Log to server so an operator can copy into env if they want persistence.
+  console.log("[shopify] OAuth succeeded — set SHOPIFY_ACCESS_TOKEN in env to persist across sessions.");
 
   return new NextResponse(
     `<html>
@@ -82,18 +91,15 @@ export async function GET(request: Request) {
   h1 { color: #34d399; font-size: 24px; margin: 0 0 8px; }
   p { color: #a1a1aa; font-size: 14px; margin: 4px 0; }
   code { background: #1e1e1e; padding: 2px 6px; border-radius: 4px; font-size: 13px; color: #fafafa; }
-  .token { background: #1e1e1e; padding: 12px; border-radius: 8px; word-break: break-all; font-family: monospace; font-size: 12px; margin: 16px 0; color: #fafafa; }
   .scope { color: #818cf8; }
   .note { color: #737373; font-size: 12px; margin-top: 16px; }
 </style></head>
 <body>
   <div class="card">
     <h1>Shopify Connected</h1>
-    <p>Store: <code>${SHOPIFY_STORE}</code></p>
+    <p>Store: <code>${storeDomain}</code></p>
     <p>Scopes: <span class="scope">${tokenData.scope}</span></p>
-    <div class="token">${accessToken}</div>
-    <p>Saved to <code>.shopify-token</code> and <code>.env.local</code></p>
-    <p class="note">Restart your dev server for the env changes to take effect. Sales &amp; Top Products widgets will now pull live Shopify data.</p>
+    <p class="note">Token stored in an HttpOnly cookie for this session. For permanent use across deploys, set <code>SHOPIFY_ACCESS_TOKEN</code> in your Railway/Vercel environment — check server logs for instructions.</p>
   </div>
 </body></html>`,
     { status: 200, headers: { "Content-Type": "text/html" } }

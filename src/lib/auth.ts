@@ -4,14 +4,20 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { db } from "./db";
 
-export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(db) as NextAuthOptions["adapter"],
-  providers: [
-    GithubProvider({
-      clientId: process.env.GITHUB_CLIENT_ID!,
-      clientSecret: process.env.GITHUB_CLIENT_SECRET!,
-    }),
-    // Fallback credentials login — works in all environments
+// Dev Login is a password-less shortcut — only enable it outside production,
+// or explicitly via ENABLE_DEV_LOGIN=true (useful for staging / preview deploys).
+const devLoginEnabled =
+  process.env.NODE_ENV !== "production" || process.env.ENABLE_DEV_LOGIN === "true";
+
+const providers: NextAuthOptions["providers"] = [
+  GithubProvider({
+    clientId: process.env.GITHUB_CLIENT_ID ?? "",
+    clientSecret: process.env.GITHUB_CLIENT_SECRET ?? "",
+  }),
+];
+
+if (devLoginEnabled) {
+  providers.push(
     CredentialsProvider({
       name: "Dev Login",
       credentials: {
@@ -29,8 +35,13 @@ export const authOptions: NextAuthOptions = {
         });
         return user;
       },
-    }),
-  ],
+    })
+  );
+}
+
+export const authOptions: NextAuthOptions = {
+  adapter: PrismaAdapter(db) as NextAuthOptions["adapter"],
+  providers,
   // JWT strategy everywhere — avoids PrismaAdapter createSession failures
   // on OAuth callback. The adapter still stores Account/User records.
   session: { strategy: "jwt" },
