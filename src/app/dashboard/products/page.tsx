@@ -1,10 +1,56 @@
 import { db } from "@/lib/db";
-import { ProductsClient } from "@/components/products/products-client";
+import { ProductsClient, type ProductHealth } from "@/components/products/products-client";
 
 export default async function ProductsPage() {
   const products = await db.product.findMany({
     orderBy: { createdAt: "desc" },
   });
+
+  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+  // Pull the numbers we need to show a per-product "is it alive?" strip.
+  // We query in parallel rather than per-card in the client — less chatter,
+  // no loading spinners, RSC renders the whole page cohesively.
+  const health: Record<string, ProductHealth> = {};
+  await Promise.all(
+    products.map(async (product) => {
+      const [signalsLast24h, lastSignal, lastLead, lastScoutJob, lastProofPost] =
+        await Promise.all([
+          db.signal.count({
+            where: { productId: product.id, createdAt: { gte: oneDayAgo } },
+          }),
+          db.signal.findFirst({
+            where: { productId: product.id },
+            orderBy: { createdAt: "desc" },
+            select: { createdAt: true },
+          }),
+          db.lead.findFirst({
+            where: { productId: product.id },
+            orderBy: { createdAt: "desc" },
+            select: { createdAt: true },
+          }),
+          db.scoutJob.findFirst({
+            where: { productId: product.id, status: "done" },
+            orderBy: { completedAt: "desc" },
+            select: { completedAt: true, resultsCount: true },
+          }),
+          db.proofPost.findFirst({
+            where: { productId: product.id },
+            orderBy: { createdAt: "desc" },
+            select: { createdAt: true },
+          }),
+        ]);
+
+      health[product.id] = {
+        signalsLast24h,
+        lastSignalAt: lastSignal?.createdAt.toISOString() ?? null,
+        lastLeadAt: lastLead?.createdAt.toISOString() ?? null,
+        lastScoutAt: lastScoutJob?.completedAt?.toISOString() ?? null,
+        lastScoutResults: lastScoutJob?.resultsCount ?? 0,
+        lastContentAt: lastProofPost?.createdAt.toISOString() ?? null,
+      };
+    })
+  );
 
   return (
     <ProductsClient
@@ -24,6 +70,7 @@ export default async function ProductsPage() {
         telegramChatId: p.telegramChatId ?? "",
         createdAt: p.createdAt.toISOString(),
       }))}
+      health={health}
     />
   );
 }

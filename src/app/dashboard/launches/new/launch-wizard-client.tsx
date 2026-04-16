@@ -141,7 +141,10 @@ export function LaunchWizardClient() {
         setError(body.error ?? `Commit failed (${res.status})`);
         return;
       }
-      router.push(`/dashboard/radar?product=${body.id}`);
+      // Redirect to Products where the new card appears with a success banner.
+      // The health strip shows "never" on everything until the operator triggers
+      // the first Radar/Scout run — the banner links there.
+      router.push(`/dashboard/products?just_launched=${encodeURIComponent(body.slug)}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error");
     } finally {

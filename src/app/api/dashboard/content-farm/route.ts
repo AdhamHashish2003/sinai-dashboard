@@ -29,7 +29,13 @@ export async function GET() {
     include: { account: { select: { handle: true, platform: true } } },
   });
 
-  const result = connections.map((conn) => {
+  const result = connections
+    // Hide connections that have never produced a real follower count — a card
+    // with "0 followers, 0% engagement, +0 growth" makes the whole page look
+    // broken. If a connection is legitimately at 0 followers, the operator can
+    // see it on /dashboard/connections and refresh/remove it from there.
+    .filter((conn) => (conn.metrics[0]?.followers ?? 0) > 0)
+    .map((conn) => {
     const latestMetric = conn.metrics[0];
     const oldestMetric = conn.metrics[conn.metrics.length - 1];
 

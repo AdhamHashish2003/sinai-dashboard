@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useSearchParams, useRouter } from "next/navigation";
 import {
   Package,
   ExternalLink,
@@ -11,7 +12,12 @@ import {
   X,
   Send,
   Sparkles,
+  Radar,
+  Users,
+  FileText,
+  CheckCircle2,
 } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
 
 export interface Product {
   id: string;
@@ -30,6 +36,24 @@ export interface Product {
   createdAt: string;
 }
 
+export interface ProductHealth {
+  signalsLast24h: number;
+  lastSignalAt: string | null;
+  lastLeadAt: string | null;
+  lastScoutAt: string | null;
+  lastScoutResults: number;
+  lastContentAt: string | null;
+}
+
+const EMPTY_HEALTH: ProductHealth = {
+  signalsLast24h: 0,
+  lastSignalAt: null,
+  lastLeadAt: null,
+  lastScoutAt: null,
+  lastScoutResults: 0,
+  lastContentAt: null,
+};
+
 const STATUS_STYLES: Record<string, string> = {
   idea: "bg-zinc-500/10 text-zinc-400 border-zinc-500/30",
   building: "bg-amber-500/10 text-amber-400 border-amber-500/30",
@@ -38,9 +62,31 @@ const STATUS_STYLES: Record<string, string> = {
   retired: "bg-red-500/10 text-red-400 border-red-500/30",
 };
 
-export function ProductsClient({ products: initial }: { products: Product[] }) {
+export function ProductsClient({
+  products: initial,
+  health,
+}: {
+  products: Product[];
+  health: Record<string, ProductHealth>;
+}) {
   const [products, setProducts] = useState(initial);
   const [editing, setEditing] = useState<Product | null>(null);
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const justLaunchedSlug = searchParams?.get("just_launched") ?? null;
+  const justLaunchedProduct = justLaunchedSlug
+    ? products.find((p) => p.slug === justLaunchedSlug) ?? null
+    : null;
+
+  // Clear the query param after 10 seconds so the banner doesn't persist
+  // through page refreshes. A manual dismiss button also clears it.
+  useEffect(() => {
+    if (!justLaunchedSlug) return;
+    const timer = setTimeout(() => {
+      router.replace("/dashboard/products");
+    }, 10_000);
+    return () => clearTimeout(timer);
+  }, [justLaunchedSlug, router]);
 
   function handleSaved(updated: Product) {
     setProducts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
@@ -49,6 +95,41 @@ export function ProductsClient({ products: initial }: { products: Product[] }) {
 
   return (
     <div>
+      {justLaunchedProduct && (
+        <div className="mb-4 flex items-start gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4">
+          <CheckCircle2 size={18} className="shrink-0 mt-0.5 text-emerald-400" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-emerald-400">
+              {justLaunchedProduct.name} launched
+            </p>
+            <p className="text-xs text-emerald-200/80 mt-1">
+              Product is live. Radar, Scout, and Content crons will pick it up on
+              their next scheduled run. Want data faster?{" "}
+              <Link
+                href="/dashboard/radar"
+                className="underline hover:text-emerald-300"
+              >
+                Run Radar now
+              </Link>{" "}
+              or{" "}
+              <Link
+                href="/dashboard/crm"
+                className="underline hover:text-emerald-300"
+              >
+                Run Scout now
+              </Link>
+              .
+            </p>
+          </div>
+          <button
+            onClick={() => router.replace("/dashboard/products")}
+            className="shrink-0 text-emerald-400/60 hover:text-emerald-400 transition-colors"
+            aria-label="Dismiss"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold tracking-tight lf-scanline">
@@ -81,6 +162,7 @@ export function ProductsClient({ products: initial }: { products: Product[] }) {
             <ProductCard
               key={product.id}
               product={product}
+              health={health[product.id] ?? EMPTY_HEALTH}
               onEdit={() => setEditing(product)}
             />
           ))}
@@ -98,11 +180,76 @@ export function ProductsClient({ products: initial }: { products: Product[] }) {
   );
 }
 
+function relTime(iso: string | null): string {
+  if (!iso) return "never";
+  return formatDistanceToNow(new Date(iso), { addSuffix: true });
+}
+
+function HealthStrip({ health }: { health: ProductHealth }) {
+  // Three-item strip: Radar / CRM / Content. Each shows latest activity.
+  // Green dot = active in last 24h, amber = older, grey = never.
+  const items = [
+    {
+      icon: Radar,
+      label: "Radar",
+      iso: health.lastSignalAt,
+      detail: health.signalsLast24h > 0 ? `${health.signalsLast24h} / 24h` : null,
+    },
+    {
+      icon: Users,
+      label: "CRM",
+      iso: health.lastLeadAt,
+      detail: health.lastScoutResults > 0 ? `+${health.lastScoutResults} last scout` : null,
+    },
+    {
+      icon: FileText,
+      label: "Content",
+      iso: health.lastContentAt,
+      detail: null,
+    },
+  ];
+
+  function dotColor(iso: string | null): string {
+    if (!iso) return "bg-zinc-600";
+    const ageHours = (Date.now() - new Date(iso).getTime()) / (1000 * 60 * 60);
+    if (ageHours <= 24) return "bg-emerald-400";
+    if (ageHours <= 72) return "bg-amber-400";
+    return "bg-zinc-500";
+  }
+
+  return (
+    <div
+      className="grid grid-cols-3 gap-2 mb-3 pt-3"
+      style={{ borderTop: "1px solid var(--lf-border)" }}
+    >
+      {items.map((item) => (
+        <div key={item.label} className="flex flex-col gap-0.5">
+          <div className="flex items-center gap-1.5">
+            <span className={`h-1.5 w-1.5 rounded-full ${dotColor(item.iso)}`} />
+            <item.icon size={10} className="text-muted-foreground" />
+            <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              {item.label}
+            </span>
+          </div>
+          <span className="text-[10px]" style={{ color: "var(--lf-text-dim)" }}>
+            {relTime(item.iso)}
+          </span>
+          {item.detail && (
+            <span className="text-[10px] text-emerald-400/80">{item.detail}</span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function ProductCard({
   product,
+  health,
   onEdit,
 }: {
   product: Product;
+  health: ProductHealth;
   onEdit: () => void;
 }) {
   return (
@@ -197,6 +344,8 @@ function ProductCard({
           ))}
         </div>
       )}
+
+      <HealthStrip health={health} />
 
       <div
         className="flex items-center justify-between pt-3"
