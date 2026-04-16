@@ -43,6 +43,16 @@ describe("launchFormSchema", () => {
     const bad = { ...minimalValid, radar: { ...minimalValid.radar, targetSubreddits: [] } };
     expect(() => launchFormSchema.parse(bad)).toThrow();
   });
+
+  it("rejects empty tagline", () => {
+    const bad = { ...minimalValid, core: { ...minimalValid.core, tagline: "" } };
+    expect(() => launchFormSchema.parse(bad)).toThrow();
+  });
+
+  it("rejects empty slug", () => {
+    const bad = { ...minimalValid, core: { ...minimalValid.core, slug: "" } };
+    expect(() => launchFormSchema.parse(bad)).toThrow();
+  });
 });
 
 describe("paragraphSchema", () => {

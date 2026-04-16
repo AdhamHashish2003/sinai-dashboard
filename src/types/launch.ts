@@ -10,8 +10,8 @@ const stateRegex = /^[A-Z]{2}$/;
 
 export const coreSchema = z.object({
   name: z.string().trim().min(1).max(80),
-  slug: z.string().trim().regex(slugRegex, "slug must be lowercase letters/numbers and dashes").max(60),
-  tagline: z.string().trim().max(120),
+  slug: z.string().trim().min(1, "slug is required").regex(slugRegex, "slug must be lowercase letters/numbers and dashes").max(60),
+  tagline: z.string().trim().min(1, "tagline is required").max(120),
   icp: z.string().trim().min(1).max(400),
   valueProp: z.string().trim().min(1).max(400),
   freeTierHook: z.string().trim().max(200).nullable(),
@@ -45,8 +45,8 @@ export const paragraphSchema = z.object({
 });
 
 export const commitRequestSchema = launchFormSchema.extend({
-  seed: z.string().min(1).max(2000),
-  model: z.string().min(1).max(80),
+  seed: z.string().trim().min(1).max(2000),
+  model: z.string().trim().min(1).max(80),
 });
 
 export type LaunchForm = z.infer<typeof launchFormSchema>;
