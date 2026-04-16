@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
   Package,
   ExternalLink,
@@ -9,6 +10,7 @@ import {
   Edit,
   X,
   Send,
+  Sparkles,
 } from "lucide-react";
 
 export interface Product {
@@ -47,14 +49,23 @@ export function ProductsClient({ products: initial }: { products: Product[] }) {
 
   return (
     <div>
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold tracking-tight lf-scanline">
-          <span className="lf-dot lf-dot-orange mr-2" />
-          Products
-        </h2>
-        <p className="text-xs mt-2" style={{ color: "var(--lf-text-dim)" }}>
-          Multi-tenant root · every signal, lead, draft, and post is scoped to a product
-        </p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight lf-scanline">
+            <span className="lf-dot lf-dot-orange mr-2" />
+            Products
+          </h2>
+          <p className="text-xs mt-2" style={{ color: "var(--lf-text-dim)" }}>
+            Multi-tenant root · every signal, lead, draft, and post is scoped to a product
+          </p>
+        </div>
+        <Link
+          href="/dashboard/launches/new"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+        >
+          <Sparkles size={14} />
+          New Launch
+        </Link>
       </div>
 
       {products.length === 0 ? (

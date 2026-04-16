@@ -130,6 +130,8 @@ The `--once` flag is accepted as a no-op on `radar` and `swarm` for CLI consiste
 | `src/components/dashboard/widget-grid.tsx` | dnd-kit sortable grid; order persists in `localStorage` |
 | `prisma/schema.prisma` | 25+ models, all above |
 | `prisma/seed.ts` | Sample data (12K — not trivial, reference for data shape) |
+| `src/app/dashboard/launches/new/` | Launch Wizard — paragraph → full Product config |
+| `src/app/api/launches/*`           | Wizard API (ai-fill + commit) |
 
 ---
 
@@ -169,6 +171,21 @@ fallback: [
 Any `/api/*` request that doesn't match a local Next.js route gets proxied to `localhost:8000`. This means:
 - If you add a new API route and it returns 404 or hangs in dev, check whether it's unknowingly being proxied to a Python backend.
 - Production deploys expect no backend at 8000 — the fallback returns a connection error silently.
+
+---
+
+## Launch Wizard
+
+Turn a freeform paragraph into a fully configured Product row.
+
+- UI: `/dashboard/launches/new`
+- Endpoints: `POST /api/launches/ai-fill` (returns a draft, no persist) and `POST /api/launches` (commits)
+- Shared Zod schema: `src/types/launch.ts`
+- LLM: Groq `llama-3.3-70b-versatile` with JSON mode, `temperature: 0.3`
+- Fields it fills on `Product`: existing `name/slug/tagline/icp/valueProp/freeTierHook/targetSubreddits/targetKeywords` + new `scoutState/scoutCities/scoutQueries/contentPostTypes/contentTopics/launchedAt/launchSeed/launchModel`
+- Scout route (`src/app/api/scout/run/route.ts`) prefers `product.scoutQueries` / `scoutCities` / `scoutState` when set, falling back to hardcoded `QUERIES` / `CITIES` / request `state` for backwards compat with PermitAI.
+
+Typical launch: paste paragraph → click "Fill with AI" → review 4 collapsible sections → click "Launch" → redirected to `/dashboard/radar?product=<id>`. Total time ~15 seconds.
 
 ---
 
