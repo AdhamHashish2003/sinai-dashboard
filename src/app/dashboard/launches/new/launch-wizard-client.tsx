@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles, Loader2, AlertCircle } from "lucide-react";
 import type { LaunchForm } from "@/types/launch";
@@ -25,25 +25,35 @@ function ArrayEditor({
   onChange: (next: string[]) => void;
   placeholder: string;
 }) {
-  const text = value.join("\n");
+  // Keep a local raw-string copy so the user can type newlines without them
+  // being stripped mid-keystroke. Sync to parent on blur.
+  const joined = value.join("\n");
+  const [text, setText] = useState(joined);
+  const prevJoined = useRef(joined);
+
+  // If the parent replaced `value` (e.g., AI fill), sync the textarea.
+  if (prevJoined.current !== joined) {
+    prevJoined.current = joined;
+    setText(joined);
+  }
+
+  function commit() {
+    const arr = text.split("\n").map((s) => s.trim()).filter(Boolean);
+    onChange(arr);
+  }
+
   return (
     <label className="block">
       <span className="block text-xs font-medium text-muted-foreground mb-1.5">{label}</span>
       <textarea
         value={text}
-        onChange={(e) =>
-          onChange(
-            e.target.value
-              .split("\n")
-              .map((s) => s.trim())
-              .filter(Boolean)
-          )
-        }
+        onChange={(e) => setText(e.target.value)}
+        onBlur={commit}
         placeholder={placeholder}
-        rows={Math.max(3, value.length + 1)}
+        rows={Math.max(3, text.split("\n").length + 1)}
         className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
       />
-      <span className="block text-[10px] text-muted-foreground mt-1">One per line.</span>
+      <span className="block text-[10px] text-muted-foreground mt-1">One per line. Changes save when you click outside.</span>
     </label>
   );
 }
@@ -104,6 +114,10 @@ export function LaunchWizardClient() {
   }
 
   async function handleCommit() {
+    // Force any focused textarea to commit its pending edits before we send.
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
     setCommitLoading(true);
     setError(null);
     try {
