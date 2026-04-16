@@ -93,18 +93,35 @@ async function fetchRealSocialData(connection: ConnectionRow): Promise<{
 }
 
 
+export type FetchResult =
+  | { refreshed: true }
+  | { refreshed: false; reason: string };
+
+const SKIP_REASONS: Record<string, string> = {
+  instagram: "Instagram API unavailable — set RAPIDAPI_KEY in env to enable live fetches.",
+  youtube: "YouTube API unavailable — set GOOGLE_API_KEY in env to enable live fetches.",
+  tiktok: "TikTok has no free public API — connection stays on manual data.",
+  twitter: "Twitter/X has no free public API — connection stays on manual data.",
+  linkedin: "LinkedIn has no free public API — connection stays on manual data.",
+};
+
 /**
  * Fetch data for a single connection.
- * Uses real APIs when available; skips if API is unavailable (no fake data).
+ * Uses real APIs when available; returns { refreshed: false, reason } when
+ * no data could be fetched so callers (UI, cron engine) can surface why.
  */
-export async function fetchConnectionData(connection: ConnectionRow): Promise<void> {
+export async function fetchConnectionData(connection: ConnectionRow): Promise<FetchResult> {
   if (connection.type === "social") {
     const realData = await fetchRealSocialData(connection);
 
     if (!realData) {
-      // No API data available — skip, don't generate fake numbers
-      console.log(`[refresh-engine] No API data for ${connection.platform}/${connection.username}, skipping`);
-      return;
+      const reason =
+        SKIP_REASONS[connection.platform] ??
+        `No API integration available for ${connection.platform}.`;
+      console.log(
+        `[refresh-engine] Skipped ${connection.platform}/${connection.username}: ${reason}`
+      );
+      return { refreshed: false, reason };
     }
 
     await db.connectionMetric.create({
@@ -134,7 +151,10 @@ export async function fetchConnectionData(connection: ConnectionRow): Promise<vo
       where: { id: connection.id },
       data: updateData,
     });
-  } else if (connection.type === "web") {
+    return { refreshed: true };
+  }
+
+  if (connection.type === "web") {
     const lastWeb = await db.webMetric.findFirst({
       where: { connectionId: connection.id },
       orderBy: { date: "desc" },
@@ -156,7 +176,13 @@ export async function fetchConnectionData(connection: ConnectionRow): Promise<vo
       where: { id: connection.id },
       data: { lastFetchedAt: new Date(), status: "active" },
     });
+    return { refreshed: true };
   }
+
+  return {
+    refreshed: false,
+    reason: `Unknown connection type: ${connection.type}`,
+  };
 }
 
 /**
