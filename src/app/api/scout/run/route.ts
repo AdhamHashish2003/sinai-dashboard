@@ -186,12 +186,28 @@ export async function POST(request: Request) {
     }
 
     const { productId, targetType, state, city, limit, searchQuery } = parsed.data;
-    const queriesToRun = searchQuery ? [searchQuery] : QUERIES;
 
-    const product = await db.product.findUnique({ where: { id: productId } });
+    const product = await db.product.findUnique({
+      where: { id: productId },
+      select: {
+        id: true,
+        slug: true,
+        scoutState: true,
+        scoutCities: true,
+        scoutQueries: true,
+      },
+    });
     if (!product) {
       return NextResponse.json({ error: "Product not found" }, { status: 404 });
     }
+
+    // Prefer product-level defaults, fall back to global constants
+    const productCities = product.scoutCities.length > 0 ? product.scoutCities : CITIES;
+    const productQueries = product.scoutQueries.length > 0 ? product.scoutQueries : QUERIES;
+    const effectiveState = product.scoutState ?? state;
+
+    const queriesToRun = searchQuery ? [searchQuery] : productQueries;
+    const chosenCities = pickRandom(productCities, 2);
 
     // Purge legacy mock leads from earlier versions of this endpoint.
     await db.lead.deleteMany({ where: { source: "cslb_mock" } });
@@ -200,7 +216,7 @@ export async function POST(request: Request) {
       data: {
         productId,
         targetType,
-        state,
+        state: effectiveState,
         city: city ?? null,
         limitCount: limit,
         status: "running",
@@ -208,7 +224,6 @@ export async function POST(request: Request) {
     });
 
     // ── Google Maps Places scraping ────────────────────────────────────────
-    const chosenCities = pickRandom(CITIES, 2);
     const allLeads: ScrapedLead[] = [];
     const citiesScraped: string[] = [];
     let successfulSearches = 0;
@@ -217,12 +232,12 @@ export async function POST(request: Request) {
     let lastGoogleErrorMessage: string | null = null;
 
     for (const gCity of chosenCities) {
-      console.log(`[scout] scraping Google Maps for ${gCity}, ${state}`);
+      console.log(`[scout] scraping Google Maps for ${gCity}, ${effectiveState}`);
       let cityHadResults = false;
       for (const query of queriesToRun) {
         totalSearches++;
         try {
-          const result = await scrapeGoogleMaps(gCity, state, query);
+          const result = await scrapeGoogleMaps(gCity, effectiveState, query);
           console.log(
             `[scout] ${gCity} / "${query}" → ${result.leads.length} results (status=${result.status})`
           );

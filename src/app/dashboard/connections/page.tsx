@@ -84,12 +84,14 @@ function ConnectionCard({
   onDelete,
   isRefreshing,
   isDeleting,
+  message,
 }: {
   conn: ConnectionData;
   onRefresh: () => void;
   onDelete: () => void;
   isRefreshing: boolean;
   isDeleting: boolean;
+  message: { kind: "ok" | "warn" | "error"; text: string } | null;
 }) {
   const color = PLATFORM_COLORS[conn.platform] ?? "#6366f1";
 
@@ -128,6 +130,21 @@ function ConnectionCard({
         </p>
       )}
 
+      {message && (
+        <p
+          className={`flex items-start gap-1.5 text-[11px] mb-3 ${
+            message.kind === "error"
+              ? "text-red-400"
+              : message.kind === "warn"
+                ? "text-yellow-400"
+                : "text-emerald-400"
+          }`}
+        >
+          <AlertCircle size={12} className="mt-0.5 shrink-0" />
+          <span>{message.text}</span>
+        </p>
+      )}
+
       <div className="flex items-center gap-2">
         <button
           onClick={onRefresh}
@@ -141,6 +158,8 @@ function ConnectionCard({
           onClick={onDelete}
           disabled={isDeleting}
           className="flex items-center justify-center rounded-md border border-border px-2.5 py-1.5 text-xs text-red-400 hover:bg-red-400/10 hover:border-red-400/30 transition-colors disabled:opacity-50"
+          aria-label={`Delete ${conn.platform} connection @${conn.username}`}
+          title="Delete connection"
         >
           <Trash2 size={12} />
         </button>
@@ -149,6 +168,8 @@ function ConnectionCard({
   );
 }
 
+type CardMessage = { kind: "ok" | "warn" | "error"; text: string };
+
 export default function ConnectionsPage() {
   const queryClient = useQueryClient();
   const [username, setUsername] = useState("");
@@ -156,6 +177,7 @@ export default function ConnectionsPage() {
   const [refreshingId, setRefreshingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [createWarning, setCreateWarning] = useState("");
+  const [cardMessages, setCardMessages] = useState<Record<string, CardMessage>>({});
 
   const { data, isLoading } = useQuery({
     queryKey: ["connections"],
@@ -190,14 +212,63 @@ export default function ConnectionsPage() {
     },
   });
 
-  function handleRefresh(id: string) {
+  function setCardMessage(id: string, message: CardMessage | null) {
+    setCardMessages((prev) => {
+      const next = { ...prev };
+      if (message) next[id] = message;
+      else delete next[id];
+      return next;
+    });
+    // Auto-clear informational messages after 8s so the card doesn't stay cluttered
+    if (message) {
+      setTimeout(() => {
+        setCardMessages((prev) => {
+          if (prev[id]?.text !== message.text) return prev;
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
+      }, 8000);
+    }
+  }
+
+  async function handleRefresh(id: string) {
     setRefreshingId(id);
-    fetch(`/api/connections/${id}/fetch`, { method: "POST" })
-      .then(() => {
-        queryClient.invalidateQueries({ queryKey: ["connections"] });
-        queryClient.invalidateQueries({ queryKey: ["content-farm"] });
-      })
-      .finally(() => setRefreshingId(null));
+    setCardMessage(id, null);
+    try {
+      const res = await fetch(`/api/connections/${id}/fetch`, { method: "POST" });
+      const body = (await res.json().catch(() => ({}))) as {
+        success?: boolean;
+        refreshed?: boolean;
+        reason?: string;
+        error?: string;
+        detail?: string;
+      };
+      if (!res.ok) {
+        setCardMessage(id, {
+          kind: "error",
+          text: body.detail ?? body.error ?? `Refresh failed (${res.status})`,
+        });
+        return;
+      }
+      if (body.refreshed === false) {
+        setCardMessage(id, {
+          kind: "warn",
+          text: body.reason ?? "Refresh skipped — no API data available.",
+        });
+      } else {
+        setCardMessage(id, { kind: "ok", text: "Refreshed from live API." });
+      }
+      queryClient.invalidateQueries({ queryKey: ["connections"] });
+      queryClient.invalidateQueries({ queryKey: ["content-farm"] });
+    } catch (err) {
+      setCardMessage(id, {
+        kind: "error",
+        text: err instanceof Error ? err.message : "Refresh failed",
+      });
+    } finally {
+      setRefreshingId(null);
+    }
   }
 
   function handleDelete(id: string) {
@@ -296,6 +367,7 @@ export default function ConnectionsPage() {
               onDelete={() => handleDelete(conn.id)}
               isRefreshing={refreshingId === conn.id}
               isDeleting={deletingId === conn.id}
+              message={cardMessages[conn.id] ?? null}
             />
           ))}
         </div>

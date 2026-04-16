@@ -19,10 +19,20 @@ export async function POST(
   }
 
   try {
-    await fetchConnectionData(connection);
-    return NextResponse.json({ success: true });
-  } catch {
+    const result = await fetchConnectionData(connection);
+    // Both paths are HTTP 200 — the endpoint ran without throwing. The
+    // `refreshed` flag lets the UI distinguish a real update from a no-op so
+    // it can show an informative toast instead of silently doing nothing.
+    return NextResponse.json({ success: true, ...result });
+  } catch (err) {
+    console.error(`[connections/fetch] error for ${id}:`, err);
     await db.connection.update({ where: { id }, data: { status: "error" } });
-    return NextResponse.json({ error: "Fetch failed" }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: "Fetch failed",
+        detail: err instanceof Error ? err.message : "Unknown error",
+      },
+      { status: 500 }
+    );
   }
 }

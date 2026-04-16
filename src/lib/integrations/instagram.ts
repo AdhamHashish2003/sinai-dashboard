@@ -55,9 +55,6 @@ export async function fetchInstagramProfile(username: string): Promise<Instagram
 
     const json = await res.json();
 
-    // Debug: log raw API response so we can verify what's coming back
-    console.log(`[instagram] Raw API response for ${handle}:`, JSON.stringify(json, null, 2));
-
     const d = (json as { data?: Record<string, unknown> }).data as {
       id?: string;
       username?: string;
@@ -73,9 +70,13 @@ export async function fetchInstagramProfile(username: string): Promise<Instagram
     if (!d) return null;
 
     const followers = d.follower_count ?? 0;
-    const engagementRate = followers > 0
-      ? parseFloat(Math.max(1, Math.min(10, 5000 / Math.sqrt(followers))).toFixed(2))
-      : 0;
+    // We return 0 when we have no way to compute real engagement. Earlier versions
+    // of this file used a synthetic formula (5000 / sqrt(followers)) which produced
+    // plausible-looking but fabricated numbers. That's worse than a zero — users
+    // treat fake data as real. Real engagement requires per-post likes/comments,
+    // which this endpoint doesn't return. To compute it properly, fetch recent
+    // media via /user/{id}/feed and average (likes + comments) / followers.
+    const engagementRate = 0;
 
     const profile: InstagramProfile = {
       id: d.id ?? `ig-${handle}`,

@@ -3,16 +3,15 @@
   "configurations": [
     {
       "name": "Next.js Dev Server",
-      "runtimeExecutable": "C:/Program Files/nodejs/node.exe",
-      "runtimeArgs": ["C:/Users/Adham/sinai-dashboard/node_modules/next/dist/bin/next", "dev"],
-      "port": 3000,
-      "autoPort": false
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 3000
     },
     {
       "name": "PostgreSQL (Docker)",
       "runtimeExecutable": "docker-compose",
       "runtimeArgs": ["up", "-d"],
-      "port": 5432
+      "port": 5433
     }
   ]
 }

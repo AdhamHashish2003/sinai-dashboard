@@ -74,6 +74,21 @@ model Product {
   telegramChatId   String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+
+  // Scout defaults — consumed by /api/scout/run
+  scoutState       String?
+  scoutCities      String[] @default([])
+  scoutQueries     String[] @default([])
+
+  // Content defaults — consumed by workers/content/main.py
+  contentPostTypes String[] @default([])
+  contentTopics    String[] @default([])
+
+  // Launch metadata — set by /api/launches wizard commit
+  launchedAt       DateTime?
+  launchSeed       String?  @db.Text
+  launchModel      String?
+
   signals          Signal[]
   replies          Reply[]
   leads            Lead[]

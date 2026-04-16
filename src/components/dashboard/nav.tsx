@@ -78,10 +78,12 @@ export function DashboardNav({ user }: NavProps) {
 
         <nav className="flex items-center gap-0.5 overflow-x-auto">
           {NAV_LINKS.map((link) => {
+            // Match the exact href or a deeper route under it
+            // (prevents /dashboard/content-farm from activating /dashboard/content).
             const isActive =
               link.href === "/dashboard"
                 ? pathname === "/dashboard"
-                : pathname.startsWith(link.href);
+                : pathname === link.href || pathname.startsWith(link.href + "/");
 
             return (
               <Link
