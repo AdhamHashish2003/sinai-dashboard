@@ -1,7 +1,16 @@
+import { getServerSession } from "next-auth";
+import { redirect } from "next/navigation";
+import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ProductsClient, type ProductHealth } from "@/components/products/products-client";
 
 export default async function ProductsPage() {
+  // The dashboard layout also guards, but server components here run in
+  // parallel with the layout — an unauthed request can fire DB queries
+  // before the layout's redirect resolves. Explicit guard prevents that.
+  const session = await getServerSession(authOptions);
+  if (!session) redirect("/");
+
   const products = await db.product.findMany({
     orderBy: { createdAt: "desc" },
   });

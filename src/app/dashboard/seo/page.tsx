@@ -1,4 +1,7 @@
 import { Search, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { getServerSession } from "next-auth";
+import { redirect } from "next/navigation";
+import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 
 type Row = {
@@ -33,6 +36,12 @@ function ChangeIndicator({ change }: { change: number }) {
 }
 
 export default async function SeoPage() {
+  // Guard at the page level as well as in the layout — server components
+  // here run in parallel with the layout, so the DB query below would
+  // otherwise fire before the layout's redirect resolved.
+  const session = await getServerSession(authOptions);
+  if (!session) redirect("/");
+
   // Top 20 keywords by position, most recent snapshot per keyword.
   const rankings = await db.keywordRanking.findMany({
     orderBy: { recordedAt: "desc" },
