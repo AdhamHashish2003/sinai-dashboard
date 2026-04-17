@@ -1,0 +1,50 @@
+name: Daily Demo Data Refresh
+
+# Keeps the MRR / social charts in sync with "today". The seed data is
+# frozen in time once prisma/seed.ts runs; this workflow shifts every
+# recordedAt so the newest record always lands on today.
+#
+# Setup:
+#   1. Set ADMIN_SECRET env var in Railway (the Next.js app reads it).
+#   2. Add the same value as a repo secret named ADMIN_SECRET:
+#        gh secret set ADMIN_SECRET
+#   3. Optionally override the target URL:
+#        gh variable set DASHBOARD_URL --body 'https://...'
+#
+# Once real webhook ingest replaces the seed data, delete this workflow.
+#
+# Security note: all values from secrets/vars pass through env vars
+# before reaching the run: script, never inlined into shell commands.
+
+on:
+  schedule:
+    # 07:17 UTC daily — off the hour to avoid the :00 / :30 thundering herd
+    - cron: "17 7 * * *"
+  workflow_dispatch: {} # lets you trigger manually from the Actions tab
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: POST /api/admin/refresh-demo-data
+        env:
+          ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
+          DASHBOARD_URL: ${{ vars.DASHBOARD_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${ADMIN_SECRET:-}" ]; then
+            echo "::error::ADMIN_SECRET repo secret not set. Run: gh secret set ADMIN_SECRET"
+            exit 1
+          fi
+          url="${DASHBOARD_URL:-https://sinai-dashboard-production.up.railway.app}"
+          response=$(curl -sS -w "\n%{http_code}" \
+            -X POST "${url}/api/admin/refresh-demo-data" \
+            -H "x-admin-secret: ${ADMIN_SECRET}")
+          body=$(echo "$response" | head -n -1)
+          status=$(echo "$response" | tail -n 1)
+          echo "Status: $status"
+          echo "Body: $body"
+          if [ "$status" != "200" ]; then
+            echo "::error::Refresh failed with status $status"
+            exit 1
+          fi
