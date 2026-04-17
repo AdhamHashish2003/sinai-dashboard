@@ -70,6 +70,7 @@ export function CrmClient({ products, leads: initial }: Props) {
   const [scoutRunning, setScoutRunning] = useState(false);
   const [scoutMessage, setScoutMessage] = useState<string | null>(null);
   const [scoutSearchQuery, setScoutSearchQuery] = useState("");
+  const [scoutLocation, setScoutLocation] = useState("");
   const pollRef = useRef<number | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
@@ -143,6 +144,7 @@ export function CrmClient({ products, leads: initial }: Props) {
     setScoutMessage("Submitting scout job to Google Maps…");
 
     const trimmedQuery = scoutSearchQuery.trim();
+    const trimmedLocation = scoutLocation.trim();
 
     try {
       const res = await fetch("/api/scout/run", {
@@ -150,8 +152,11 @@ export function CrmClient({ products, leads: initial }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           productId: productFilter,
-          state: "CA",
+          // Fall back to CA only when no location is specified. Location
+          // overrides the default + bypasses the product's city rotation.
+          state: trimmedLocation ? "" : "CA",
           ...(trimmedQuery ? { searchQuery: trimmedQuery } : {}),
+          ...(trimmedLocation ? { location: trimmedLocation } : {}),
         }),
       });
 
@@ -261,12 +266,24 @@ export function CrmClient({ products, leads: initial }: Props) {
           type="text"
           value={scoutSearchQuery}
           onChange={(e) => setScoutSearchQuery(e.target.value)}
-          placeholder="Search query (optional, e.g. ADU builder)"
+          placeholder='What to find (e.g. "dental clinic")'
           disabled={scoutRunning}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !scoutRunning) handleRunScout();
           }}
           className="w-56 rounded-lg border border-border bg-card px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 disabled:opacity-50"
+        />
+
+        <input
+          type="text"
+          value={scoutLocation}
+          onChange={(e) => setScoutLocation(e.target.value)}
+          placeholder='Where (e.g. "Cairo, Egypt")'
+          disabled={scoutRunning}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !scoutRunning) handleRunScout();
+          }}
+          className="w-52 rounded-lg border border-border bg-card px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 disabled:opacity-50"
         />
 
         <button
@@ -360,6 +377,7 @@ export function CrmClient({ products, leads: initial }: Props) {
           lead={activeLead}
           onClose={() => setActiveLead(null)}
           onUpdate={updateLead}
+          onDelete={(id) => setLeads((prev) => prev.filter((l) => l.id !== id))}
         />
       )}
 

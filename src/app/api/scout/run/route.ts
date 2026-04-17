@@ -9,8 +9,15 @@ const RunSchema = z.object({
   targetType: z
     .enum(["cslb_adu_builders", "permit_expediters", "small_gcs"])
     .default("cslb_adu_builders"),
-  state: z.string().min(2).max(2).default("CA"),
-  city: z.string().max(100).nullable().optional(),
+  // `state` used to require a 2-letter US state code. Relaxed so international
+  // launches work — "Egypt", "UK", "NSW", "" are all fine. Google Places
+  // textsearch just concatenates everything into a free-form query.
+  state: z.string().trim().max(80).default("CA"),
+  city: z.string().trim().max(200).nullable().optional(),
+  // NEW: `location` is an optional free-text override that bypasses the
+  // random-city-picking flow entirely. Useful for one-shot scrapes like
+  // "dental clinics in Egypt" — set location="Egypt", searchQuery="dental clinic".
+  location: z.string().trim().max(200).optional(),
   limit: z.number().int().min(1).max(500).default(20),
   searchQuery: z.string().trim().min(1).max(200).optional(),
 });
@@ -185,7 +192,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const { productId, targetType, state, city, limit, searchQuery } = parsed.data;
+    const { productId, targetType, state, city, location, limit, searchQuery } = parsed.data;
 
     const product = await db.product.findUnique({
       where: { id: productId },
@@ -201,13 +208,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Product not found" }, { status: 404 });
     }
 
-    // Prefer product-level defaults, fall back to global constants
+    // Three ways the location is resolved, in priority order:
+    //   1. Caller-supplied `location` (free-text override, e.g. "Egypt",
+    //      "Cairo, Egypt", "NYC"). Single-location scrape, bypasses city rotation.
+    //   2. Product-level `scoutCities` (seeded at launch-wizard time).
+    //   3. Hardcoded `CITIES` global (California fallback for legacy PermitAI).
     const productCities = product.scoutCities.length > 0 ? product.scoutCities : CITIES;
     const productQueries = product.scoutQueries.length > 0 ? product.scoutQueries : QUERIES;
-    const effectiveState = product.scoutState ?? state;
+    const effectiveState = location ? "" : (product.scoutState ?? state);
 
     const queriesToRun = searchQuery ? [searchQuery] : productQueries;
-    const chosenCities = pickRandom(productCities, 2);
+    const chosenCities = location ? [location] : pickRandom(productCities, 2);
 
     // Purge legacy mock leads from earlier versions of this endpoint.
     await db.lead.deleteMany({ where: { source: "cslb_mock" } });
@@ -216,8 +227,8 @@ export async function POST(request: Request) {
       data: {
         productId,
         targetType,
-        state: effectiveState,
-        city: city ?? null,
+        state: effectiveState || "—",
+        city: location ?? city ?? null,
         limitCount: limit,
         status: "running",
       },
