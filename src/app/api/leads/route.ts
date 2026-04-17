@@ -73,3 +73,66 @@ export async function POST(request: Request) {
     );
   }
 }
+
+const BulkDeleteSchema = z.object({
+  productId: z.string().min(1),
+  // Caller must echo the product's slug to prove they meant it. Prevents
+  // a muscle-memory click from wiping 300+ rows. The handler fetches the
+  // product and refuses the delete if slugs don't match.
+  confirmSlug: z.string().min(1).max(120),
+});
+
+/**
+ * DELETE /api/leads — bulk delete every lead for one product.
+ *
+ * Scoped per-product by design. Refuses to wipe across products in a single
+ * call: if you want a true "reset all," hit this endpoint once per product
+ * with its own confirmSlug. That's intentional — it makes accidental total
+ * nukes impossible from a single API call.
+ */
+export async function DELETE(request: Request) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const body = await request.json().catch(() => null);
+    const parsed = BulkDeleteSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Invalid input", details: parsed.error.flatten() },
+        { status: 400 }
+      );
+    }
+
+    const { productId, confirmSlug } = parsed.data;
+
+    const product = await db.product.findUnique({
+      where: { id: productId },
+      select: { id: true, slug: true, name: true },
+    });
+    if (!product) {
+      return NextResponse.json({ error: "Product not found" }, { status: 404 });
+    }
+
+    if (product.slug !== confirmSlug) {
+      return NextResponse.json(
+        { error: "Slug mismatch — refusing to delete", expected: product.slug },
+        { status: 400 }
+      );
+    }
+
+    const { count } = await db.lead.deleteMany({ where: { productId } });
+
+    return NextResponse.json({
+      success: true,
+      deleted: count,
+      product: { id: product.id, slug: product.slug, name: product.name },
+    });
+  } catch (err) {
+    console.error("[leads] bulk DELETE error:", err);
+    return NextResponse.json(
+      { error: "Internal server error", detail: err instanceof Error ? err.message : "Unknown" },
+      { status: 500 }
+    );
+  }
+}
