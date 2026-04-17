@@ -9,9 +9,6 @@ import {
   Radar,
   Bug,
   Users,
-  FileText,
-  Search,
-  BarChart3,
   LogOut,
   Rocket,
 } from "lucide-react";
@@ -21,14 +18,15 @@ interface NavProps {
   user: { name?: string | null; email?: string | null; image?: string | null } | undefined;
 }
 
+// Nav shows only the active-use surfaces. Content / SEO / Metrics are
+// deprioritized — the pages still exist at their URLs and can be linked
+// to directly if needed, but they clutter the primary nav for everyday
+// operator work (Products → Radar → Swarm → CRM is the main loop).
 const NAV_LINKS = [
   { href: "/dashboard/products", label: "Products", icon: Package },
   { href: "/dashboard/radar", label: "Radar", icon: Radar },
   { href: "/dashboard/swarm", label: "Swarm", icon: Bug },
   { href: "/dashboard/crm", label: "CRM", icon: Users },
-  { href: "/dashboard/content", label: "Content", icon: FileText },
-  { href: "/dashboard/seo", label: "SEO", icon: Search },
-  { href: "/dashboard/metrics", label: "Metrics", icon: BarChart3 },
 ];
 
 export function DashboardNav({ user }: NavProps) {
@@ -59,7 +57,7 @@ export function DashboardNav({ user }: NavProps) {
 
       <div className="flex items-center gap-6">
         <Link
-          href="/dashboard/metrics"
+          href="/dashboard/products"
           className="flex items-center gap-2 text-sm font-semibold group"
         >
           <Rocket

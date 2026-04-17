@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, ExternalLink, Mail, Building2, MapPin, User, Phone, FileText } from "lucide-react";
+import { X, ExternalLink, Mail, Building2, MapPin, User, Phone, FileText, Trash2 } from "lucide-react";
 
 export interface Lead {
   id: string;
@@ -28,14 +28,18 @@ interface Props {
   lead: Lead | null;
   onClose: () => void;
   onUpdate: (id: string, patch: Partial<Lead>) => void;
+  onDelete: (id: string) => void;
 }
 
-export function LeadDrawer({ lead, onClose, onUpdate }: Props) {
+export function LeadDrawer({ lead, onClose, onUpdate, onDelete }: Props) {
   const [notes, setNotes] = useState(lead?.notes ?? "");
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   useEffect(() => {
     setNotes(lead?.notes ?? "");
+    setConfirmingDelete(false);
   }, [lead?.id, lead?.notes]);
 
   if (!lead) return null;
@@ -52,6 +56,24 @@ export function LeadDrawer({ lead, onClose, onUpdate }: Props) {
       if (res.ok) onUpdate(lead.id, { notes });
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!lead) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/leads/${lead.id}`, { method: "DELETE" });
+      if (res.ok) {
+        onDelete(lead.id);
+        onClose();
+      } else {
+        setDeleting(false);
+        setConfirmingDelete(false);
+      }
+    } catch {
+      setDeleting(false);
+      setConfirmingDelete(false);
     }
   }
 
@@ -164,6 +186,37 @@ export function LeadDrawer({ lead, onClose, onUpdate }: Props) {
             <div>Created: {new Date(lead.createdAt).toLocaleString()}</div>
             {lead.lastTouchAt && (
               <div>Last touch: {new Date(lead.lastTouchAt).toLocaleString()}</div>
+            )}
+          </div>
+
+          {/* Destructive actions — two-click confirmation, not a native confirm()
+              dialog because those block the whole tab. */}
+          <div className="pt-4 border-t border-border">
+            {confirmingDelete ? (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="flex-1 rounded-md bg-red-500/20 border border-red-500/40 text-red-400 text-xs font-medium py-2 hover:bg-red-500/30 transition-colors disabled:opacity-50"
+                >
+                  {deleting ? "Deleting…" : `Yes, delete ${lead.name}`}
+                </button>
+                <button
+                  onClick={() => setConfirmingDelete(false)}
+                  disabled={deleting}
+                  className="rounded-md border border-border text-xs text-muted-foreground px-3 py-2 hover:bg-muted/30 transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setConfirmingDelete(true)}
+                className="flex items-center gap-1.5 rounded-md border border-border text-xs text-red-400 px-3 py-1.5 hover:bg-red-400/10 hover:border-red-400/30 transition-colors"
+              >
+                <Trash2 size={12} />
+                Delete lead
+              </button>
             )}
           </div>
         </div>
