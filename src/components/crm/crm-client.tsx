@@ -27,6 +27,7 @@ import {
   Building2,
   MapPin,
   Clock,
+  Trash2,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { LeadDrawer, type Lead } from "./lead-drawer";
@@ -67,6 +68,10 @@ export function CrmClient({ products, leads: initial }: Props) {
   const [activeLead, setActiveLead] = useState<Lead | null>(null);
   const [draggingLead, setDraggingLead] = useState<Lead | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetConfirmText, setResetConfirmText] = useState("");
+  const [resetting, setResetting] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
   const [scoutRunning, setScoutRunning] = useState(false);
   const [scoutMessage, setScoutMessage] = useState<string | null>(null);
   const [scoutSearchQuery, setScoutSearchQuery] = useState("");
@@ -315,6 +320,27 @@ export function CrmClient({ products, leads: initial }: Props) {
           Export CSV
         </button>
 
+        {/* Reset leads — scoped to the selected product only. The button is
+            disabled whenever "All Products" is selected so a missed click can't
+            nuke leads across the fleet. */}
+        <button
+          onClick={() => {
+            setResetConfirmText("");
+            setResetError(null);
+            setShowResetModal(true);
+          }}
+          disabled={productFilter === "all" || resetting}
+          title={
+            productFilter === "all"
+              ? "Pick a specific product first"
+              : "Delete every lead for the selected product"
+          }
+          className="flex items-center gap-1.5 rounded-lg border border-red-400/30 bg-card px-3 py-1.5 text-xs font-medium text-red-400 hover:bg-red-400/10 hover:border-red-400/50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <Trash2 size={12} />
+          Reset leads
+        </button>
+
         <span className="text-xs text-muted-foreground ml-auto">
           {filtered.length} lead{filtered.length !== 1 ? "s" : ""}
         </span>
@@ -392,6 +418,99 @@ export function CrmClient({ products, leads: initial }: Props) {
           }}
         />
       )}
+
+      {showResetModal && productFilter !== "all" && (() => {
+        const product = products.find((p) => p.id === productFilter);
+        if (!product) return null;
+        // Bind non-null values into the closure so the nested async function
+        // doesn't lose the type narrowing from the early return above.
+        const productId = product.id;
+        const productSlug = product.slug;
+        const leadCount = leads.filter((l) => l.productId === productFilter).length;
+        const slugMatches = resetConfirmText.trim() === productSlug;
+
+        async function confirmReset() {
+          setResetting(true);
+          setResetError(null);
+          try {
+            const res = await fetch("/api/leads", {
+              method: "DELETE",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ productId, confirmSlug: productSlug }),
+            });
+            const body = await res.json().catch(() => ({}));
+            if (!res.ok) {
+              setResetError(body.error ?? `Reset failed (${res.status})`);
+              return;
+            }
+            // Drop every lead for this product from local state — no reload needed.
+            setLeads((prev) => prev.filter((l) => l.productId !== productId));
+            setShowResetModal(false);
+            setResetConfirmText("");
+          } catch (err) {
+            setResetError(err instanceof Error ? err.message : "Network error");
+          } finally {
+            setResetting(false);
+          }
+        }
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+            <div className="w-full max-w-md rounded-xl border border-red-400/30 bg-card p-6 shadow-2xl">
+              <div className="flex items-start gap-3 mb-4">
+                <Trash2 size={20} className="text-red-400 shrink-0 mt-0.5" />
+                <div>
+                  <h3 className="text-sm font-semibold">Reset leads for {product.name}?</h3>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    This permanently deletes <strong>{leadCount} lead{leadCount === 1 ? "" : "s"}</strong>{" "}
+                    scoped to <code className="text-[11px]">{product.slug}</code>. Irreversible.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mb-3">
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                  Type <code className="text-[11px] text-foreground">{product.slug}</code> to confirm
+                </label>
+                <input
+                  type="text"
+                  value={resetConfirmText}
+                  onChange={(e) => setResetConfirmText(e.target.value)}
+                  autoFocus
+                  disabled={resetting}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-red-400/50 disabled:opacity-50"
+                  placeholder={product.slug}
+                />
+              </div>
+
+              {resetError && (
+                <p className="text-xs text-red-400 mb-3">{resetError}</p>
+              )}
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={confirmReset}
+                  disabled={!slugMatches || resetting}
+                  className="flex-1 rounded-md bg-red-500/20 border border-red-500/40 text-red-400 text-xs font-medium py-2 hover:bg-red-500/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {resetting ? "Deleting…" : `Delete ${leadCount} lead${leadCount === 1 ? "" : "s"}`}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowResetModal(false);
+                    setResetConfirmText("");
+                    setResetError(null);
+                  }}
+                  disabled={resetting}
+                  className="rounded-md border border-border text-xs text-muted-foreground px-3 py-2 hover:bg-muted/30 transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
