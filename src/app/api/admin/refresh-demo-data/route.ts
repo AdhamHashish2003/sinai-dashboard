@@ -8,22 +8,50 @@ export const maxDuration = 30;
 /**
  * POST /api/admin/refresh-demo-data
  *
- * The dashboard's MRR chart + SaaS metrics widgets are demo data generated
- * by `prisma/seed.ts` with `recordedAt = subDays(new Date(), N)`. Once the
- * seed runs, timestamps are frozen — if the seed last ran in March, the
- * chart still shows March dates in April. Users look at a dead chart.
+ * Shifts `SaasMetric.recordedAt` and `SocialMetric.recordedAt` so the newest
+ * record lands on today. Demo data from `prisma/seed.ts` freezes in time —
+ * this keeps the MRR/social charts looking alive until real webhook ingest
+ * replaces the seed.
  *
- * This endpoint shifts every time-based demo row so the most recent record
- * lands on today. It's idempotent: if the newest record is already "today",
- * nothing happens. Once a real webhook ingest kicks in (Stripe, etc.), demo
- * data can be deleted and this endpoint retired.
+ * Auth: accepts either an authed session OR `x-admin-secret` header matching
+ * `ADMIN_SECRET` env var. The secret path lets GitHub Actions / Railway cron
+ * call this endpoint without maintaining a session cookie.
  *
- * Auth-gated. Safe to call from a cron or manually from the dashboard.
+ * Idempotent. If the newest record is already today, nothing changes.
  */
-export async function POST() {
+
+async function authorize(req: Request): Promise<
+  { ok: true } | { ok: false; status: number; body: { error: string } }
+> {
+  // Secret-header path for cron jobs
+  const providedSecret = req.headers.get("x-admin-secret");
+  const expectedSecret = process.env.ADMIN_SECRET;
+  if (providedSecret && expectedSecret && providedSecret === expectedSecret) {
+    return { ok: true };
+  }
+  if (providedSecret && !expectedSecret) {
+    return {
+      ok: false,
+      status: 503,
+      body: { error: "ADMIN_SECRET not configured on server" },
+    };
+  }
+  if (providedSecret && providedSecret !== expectedSecret) {
+    return { ok: false, status: 403, body: { error: "Invalid admin secret" } };
+  }
+
+  // Session path for browser callers
   const session = await getServerSession(authOptions);
   if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return { ok: false, status: 401, body: { error: "Unauthorized" } };
+  }
+  return { ok: true };
+}
+
+export async function POST(req: Request) {
+  const auth = await authorize(req);
+  if (!auth.ok) {
+    return NextResponse.json(auth.body, { status: auth.status });
   }
 
   const now = new Date();

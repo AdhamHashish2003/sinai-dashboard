@@ -35,7 +35,9 @@
       "Bash(netstat -ano)",
       "Bash(taskkill //F //PID 65312)",
       "Bash(\"/c/Program Files/GitHub CLI/gh.exe\" --version)",
-      "Bash(cmd.exe /c \"where gh 2>nul\")"
+      "Bash(cmd.exe /c \"where gh 2>nul\")",
+      "Bash(npx tsc:*)",
+      "Bash(1 git:*)"
     ]
   }
 }
