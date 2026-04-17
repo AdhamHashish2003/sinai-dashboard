@@ -20,6 +20,42 @@ const UpdateSchema = z.object({
   telegramChatId: z.string().max(100).nullable().optional().or(z.literal("")),
 });
 
+/**
+ * Permanently delete a product and every row scoped to it. Related
+ * Signal / Reply / Lead / ScoutJob / ProofPost rows cascade via
+ * Prisma's `onDelete: Cascade` (see prisma/schema.prisma). Use sparingly —
+ * this is irreversible. For demoting a product without losing history,
+ * PATCH with `status: "retired"` instead.
+ */
+export async function DELETE(
+  _request: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const { id } = params;
+    const product = await db.product.findUnique({
+      where: { id },
+      select: { id: true, slug: true, name: true },
+    });
+    if (!product) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    await db.product.delete({ where: { id } });
+
+    return NextResponse.json({ success: true, deleted: product });
+  } catch (err) {
+    console.error("[products/id] DELETE error:", err);
+    return NextResponse.json(
+      { error: "Delete failed", detail: err instanceof Error ? err.message : "Unknown" },
+      { status: 500 }
+    );
+  }
+}
+
 export async function PATCH(
   request: Request,
   { params }: { params: { id: string } }
