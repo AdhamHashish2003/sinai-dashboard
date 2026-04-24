@@ -1,1 +1,5 @@
-export { default } from "@/app/dashboard/content-farm/page";
+import { redirect } from "next/navigation";
+
+export default function MetricsContentFarmPage() {
+  redirect("/dashboard/crm");
+}

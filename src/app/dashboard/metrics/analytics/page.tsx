@@ -1,1 +1,5 @@
-export { default } from "@/app/dashboard/analytics/page";
+import { redirect } from "next/navigation";
+
+export default function MetricsAnalyticsPage() {
+  redirect("/dashboard/crm");
+}

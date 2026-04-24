@@ -7,7 +7,9 @@ import { z } from "zod";
 const CreateSchema = z.object({
   productId: z.string().min(1),
   name: z.string().min(1).max(200),
-  source: z.enum(["scout", "radar", "manual", "inbound"]).default("manual"),
+  source: z
+    .enum(["scout", "radar", "manual", "inbound", "google_maps", "dental_scout"])
+    .default("manual"),
   sourceUrl: z.string().url().nullable().optional(),
   email: z.string().email().nullable().optional(),
   company: z.string().max(200).nullable().optional(),

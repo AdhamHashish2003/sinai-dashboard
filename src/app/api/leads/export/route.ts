@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 
+export const dynamic = "force-dynamic";
+
 /**
  * GET /api/leads/export?productId=xxx
  * Returns leads for a product as a CSV file download.
@@ -27,9 +29,18 @@ export async function GET(request: Request) {
       "id",
       "product",
       "name",
-      "company",
-      "role",
-      "email",
+      "address",
+      "phone",
+      "business_emails",
+      "website",
+      "instagram",
+      "tiktok",
+      "has_social_media",
+      "good_social_media",
+      "max_video_views",
+      "founding_date",
+      "is_franchise",
+      "franchise_reason",
       "city",
       "state",
       "status",
@@ -41,23 +52,42 @@ export async function GET(request: Request) {
       "created_at",
     ];
 
-    const rows = leads.map((l) => [
-      l.id,
-      l.product.slug,
-      l.name,
-      l.company ?? "",
-      l.role ?? "",
-      l.email ?? "",
-      l.city ?? "",
-      l.state ?? "",
-      l.status,
-      l.source,
-      l.sourceUrl ?? "",
-      l.lastTouchAt?.toISOString() ?? "",
-      l.replyReceived ? "yes" : "no",
-      (l.notes ?? "").replace(/\r?\n/g, " "),
-      l.createdAt.toISOString(),
-    ]);
+    const rows = leads.map((l) => {
+      const enrichment = (l.enrichmentJson ?? {}) as Record<string, unknown>;
+      const emails = asStringArray(enrichment.emails);
+      if (l.email && !emails.includes(l.email)) emails.unshift(l.email);
+
+      return [
+        l.id,
+        l.product.slug,
+        l.name,
+        asString(enrichment.address),
+        asString(enrichment.phone),
+        emails.join("; "),
+        asString(enrichment.website),
+        asStringArray(enrichment.instagram).join("; "),
+        asStringArray(enrichment.tiktok).join("; "),
+        enrichment.hasSocialMedia === true ? "yes" : "no",
+        enrichment.goodSocialMedia === true
+          ? "yes"
+          : enrichment.goodSocialMedia === false
+          ? "no"
+          : "unknown",
+        asNumber(enrichment.maxVideoViews) ?? "",
+        asString(enrichment.foundingDate),
+        enrichment.isFranchise === true ? "yes" : "no",
+        asString(enrichment.franchiseReason),
+        l.city ?? "",
+        l.state ?? "",
+        l.status,
+        l.source,
+        l.sourceUrl ?? "",
+        l.lastTouchAt?.toISOString() ?? "",
+        l.replyReceived ? "yes" : "no",
+        (l.notes ?? "").replace(/\r?\n/g, " "),
+        l.createdAt.toISOString(),
+      ];
+    });
 
     const csv = [header, ...rows]
       .map((row) =>
@@ -91,4 +121,17 @@ export async function GET(request: Request) {
       { status: 500 }
     );
   }
+}
+
+function asString(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+function asNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function asStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === "string" && item.length > 0);
 }

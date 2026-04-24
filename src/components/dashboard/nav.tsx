@@ -1,33 +1,17 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { signOut } from "next-auth/react";
-import {
-  Package,
-  Radar,
-  Bug,
-  Users,
-  LogOut,
-  Rocket,
-} from "lucide-react";
 import Image from "next/image";
+import { signOut } from "next-auth/react";
+import { LogOut, Stethoscope, Users } from "lucide-react";
 
 interface NavProps {
   user: { name?: string | null; email?: string | null; image?: string | null } | undefined;
 }
 
-// Nav shows only the active-use surfaces. Content / SEO / Metrics are
-// deprioritized — the pages still exist at their URLs and can be linked
-// to directly if needed, but they clutter the primary nav for everyday
-// operator work (Products → Radar → Swarm → CRM is the main loop).
-const NAV_LINKS = [
-  { href: "/dashboard/products", label: "Products", icon: Package },
-  { href: "/dashboard/radar", label: "Radar", icon: Radar },
-  { href: "/dashboard/swarm", label: "Swarm", icon: Bug },
-  { href: "/dashboard/crm", label: "CRM", icon: Users },
-];
+const NAV_LINKS = [{ href: "/dashboard/crm", label: "Dental CRM", icon: Users }];
 
 export function DashboardNav({ user }: NavProps) {
   const pathname = usePathname() ?? "";
@@ -36,7 +20,7 @@ export function DashboardNav({ user }: NavProps) {
 
   return (
     <header
-      className="relative px-6 py-3 flex items-center justify-between"
+      className="relative flex items-center justify-between px-6 py-3"
       style={{
         background: "rgba(6, 6, 8, 0.85)",
         backdropFilter: "blur(14px)",
@@ -44,7 +28,6 @@ export function DashboardNav({ user }: NavProps) {
         borderBottom: "1px solid var(--lf-border)",
       }}
     >
-      {/* top orange scan line */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute left-0 right-0 top-0 h-[1px]"
@@ -57,10 +40,10 @@ export function DashboardNav({ user }: NavProps) {
 
       <div className="flex items-center gap-6">
         <Link
-          href="/dashboard/products"
-          className="flex items-center gap-2 text-sm font-semibold group"
+          href="/dashboard/crm"
+          className="group flex items-center gap-2 text-sm font-semibold"
         >
-          <Rocket
+          <Stethoscope
             size={18}
             className="text-primary transition-transform group-hover:rotate-12"
             style={{ filter: "drop-shadow(0 0 6px var(--lf-orange-glow))" }}
@@ -69,19 +52,15 @@ export function DashboardNav({ user }: NavProps) {
             className="font-mono tracking-tight"
             style={{ textShadow: "0 0 10px var(--lf-orange-glow-soft)" }}
           >
-            LaunchForge
+            ClinicScout
           </span>
-          <span className="lf-dot lf-dot-live ml-1" title="Systems nominal" />
+          <span className="lf-dot lf-dot-live ml-1" title="Live dental scout" />
         </Link>
 
         <nav className="flex items-center gap-0.5 overflow-x-auto">
           {NAV_LINKS.map((link) => {
-            // Match the exact href or a deeper route under it
-            // (prevents /dashboard/content-farm from activating /dashboard/content).
             const isActive =
-              link.href === "/dashboard"
-                ? pathname === "/dashboard"
-                : pathname === link.href || pathname.startsWith(link.href + "/");
+              pathname === link.href || pathname.startsWith(link.href + "/");
 
             return (
               <Link
@@ -111,7 +90,7 @@ export function DashboardNav({ user }: NavProps) {
         )}
         {mounted && user?.name && (
           <span
-            className="text-[10px] uppercase tracking-wider hidden sm:block"
+            className="hidden text-[10px] uppercase tracking-wider sm:block"
             style={{ color: "var(--lf-text-dim)" }}
           >
             {user.name}
@@ -121,8 +100,12 @@ export function DashboardNav({ user }: NavProps) {
           onClick={() => signOut({ callbackUrl: "/" })}
           className="flex items-center gap-1 text-[10px] uppercase tracking-wider transition-colors"
           style={{ color: "var(--lf-text-dim)" }}
-          onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "var(--lf-orange)")}
-          onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "var(--lf-text-dim)")}
+          onMouseEnter={(e) =>
+            ((e.currentTarget as HTMLButtonElement).style.color = "var(--lf-orange)")
+          }
+          onMouseLeave={(e) =>
+            ((e.currentTarget as HTMLButtonElement).style.color = "var(--lf-text-dim)")
+          }
         >
           <LogOut size={12} />
           Eject

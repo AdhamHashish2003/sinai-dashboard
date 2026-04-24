@@ -1,35 +1,22 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useMemo, useState } from "react";
 import {
-  DndContext,
-  DragOverlay,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  closestCorners,
-  type DragStartEvent,
-  type DragEndEvent,
-} from "@dnd-kit/core";
-import {
-  SortableContext,
-  useSortable,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import {
-  Users,
-  Plus,
-  Play,
   Download,
-  Loader2,
   ExternalLink,
-  Building2,
+  Filter,
+  Loader2,
+  Mail,
   MapPin,
-  Clock,
+  Phone,
+  Play,
+  RotateCcw,
+  Search,
+  ShieldQuestion,
+  Stethoscope,
   Trash2,
+  Video,
 } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
 import { LeadDrawer, type Lead } from "./lead-drawer";
 
 interface Product {
@@ -39,814 +26,719 @@ interface Product {
 }
 
 interface Props {
-  products: Product[];
+  product: Product;
   leads: Lead[];
 }
 
-const STATUS_COLUMNS = [
-  { id: "new", label: "New", color: "text-blue-400 border-blue-500/20 bg-blue-500/5" },
-  { id: "enriched", label: "Enriched", color: "text-cyan-400 border-cyan-500/20 bg-cyan-500/5" },
-  { id: "contacted", label: "Contacted", color: "text-amber-400 border-amber-500/20 bg-amber-500/5" },
-  { id: "replied", label: "Replied", color: "text-purple-400 border-purple-500/20 bg-purple-500/5" },
-  { id: "trial", label: "Trial", color: "text-indigo-400 border-indigo-500/20 bg-indigo-500/5" },
-  { id: "paid", label: "Paid", color: "text-emerald-400 border-emerald-500/20 bg-emerald-500/5" },
-  { id: "dead", label: "Dead", color: "text-zinc-500 border-zinc-500/20 bg-zinc-500/5" },
+const STATUS_OPTIONS = [
+  "new",
+  "enriched",
+  "contacted",
+  "replied",
+  "trial",
+  "paid",
+  "dead",
 ] as const;
 
-const SOURCE_STYLES: Record<string, string> = {
-  scout: "bg-emerald-500/10 text-emerald-400",
-  radar: "bg-orange-500/10 text-orange-400",
-  manual: "bg-zinc-500/10 text-zinc-400",
-  inbound: "bg-primary/10 text-primary",
-};
+type SocialFilter = "all" | "good" | "not-good" | "none" | "unknown";
+type BinaryFilter = "all" | "yes" | "no";
 
-export function CrmClient({ products, leads: initial }: Props) {
-  const [leads, setLeads] = useState<Lead[]>(initial);
-  const [productFilter, setProductFilter] = useState<string>(
-    products[0]?.id ?? "all"
-  );
+export function CrmClient({ product, leads: initial }: Props) {
+  const [leads, setLeads] = useState(initial);
   const [activeLead, setActiveLead] = useState<Lead | null>(null);
-  const [draggingLead, setDraggingLead] = useState<Lead | null>(null);
-  const [showAddForm, setShowAddForm] = useState(false);
+  const [state, setState] = useState("California");
+  const [city, setCity] = useState("");
+  const [limit, setLimit] = useState(10);
+  const [running, setRunning] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [cityFilter, setCityFilter] = useState("all");
+  const [socialFilter, setSocialFilter] = useState<SocialFilter>("all");
+  const [emailFilter, setEmailFilter] = useState<BinaryFilter>("all");
+  const [franchiseFilter, setFranchiseFilter] = useState<BinaryFilter>("all");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [showResetModal, setShowResetModal] = useState(false);
   const [resetConfirmText, setResetConfirmText] = useState("");
   const [resetting, setResetting] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
-  const [scoutRunning, setScoutRunning] = useState(false);
-  const [scoutMessage, setScoutMessage] = useState<string | null>(null);
-  const [scoutSearchQuery, setScoutSearchQuery] = useState("");
-  const [scoutLocation, setScoutLocation] = useState("");
-  const pollRef = useRef<number | null>(null);
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  const cities = useMemo(() => {
+    return Array.from(new Set(leads.map((lead) => lead.city).filter(Boolean))).sort();
+  }, [leads]);
 
-  const filtered = leads.filter(
-    (l) => productFilter === "all" || l.productId === productFilter
-  );
+  const filtered = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return leads.filter((lead) => {
+      const enrichment = getEnrichment(lead);
+      const quality = getSocialQuality(lead);
+      const emailCount = getEmails(lead).length;
+      const franchise = enrichment.isFranchise === true;
 
-  function getColumn(status: string): Lead[] {
-    return filtered.filter((l) => l.status === status);
-  }
+      if (cityFilter !== "all" && lead.city !== cityFilter) return false;
+      if (statusFilter !== "all" && lead.status !== statusFilter) return false;
+      if (socialFilter !== "all" && quality !== socialFilter) return false;
+      if (emailFilter === "yes" && emailCount === 0) return false;
+      if (emailFilter === "no" && emailCount > 0) return false;
+      if (franchiseFilter === "yes" && !franchise) return false;
+      if (franchiseFilter === "no" && franchise) return false;
 
-  async function updateLead(id: string, patch: Partial<Lead>) {
-    setLeads((prev) =>
-      prev.map((l) => (l.id === id ? { ...l, ...patch } : l))
-    );
-  }
+      if (!needle) return true;
+      const searchable = [
+        lead.name,
+        lead.company,
+        lead.email,
+        lead.city,
+        lead.state,
+        enrichment.address,
+        enrichment.phone,
+        enrichment.website,
+        getEmails(lead).join(" "),
+        getSocialLinks(lead).join(" "),
+      ]
+        .join(" ")
+        .toLowerCase();
+      return searchable.includes(needle);
+    });
+  }, [
+    leads,
+    query,
+    cityFilter,
+    statusFilter,
+    socialFilter,
+    emailFilter,
+    franchiseFilter,
+  ]);
 
-  async function persistStatus(id: string, status: string) {
-    try {
-      const res = await fetch(`/api/leads/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
-      });
-      if (!res.ok) {
-        // Revert
-        console.error("Failed to update lead status");
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  }
-
-  function handleDragStart(e: DragStartEvent) {
-    const id = e.active.id as string;
-    const lead = leads.find((l) => l.id === id);
-    setDraggingLead(lead ?? null);
-  }
-
-  function handleDragEnd(e: DragEndEvent) {
-    setDraggingLead(null);
-    const { active, over } = e;
-    if (!over) return;
-
-    const activeId = active.id as string;
-    const overId = over.id as string;
-
-    const activeLead = leads.find((l) => l.id === activeId);
-    if (!activeLead) return;
-
-    // Determine target column: overId is either a column id or another lead id
-    let targetStatus = STATUS_COLUMNS.find((c) => c.id === overId)?.id;
-    if (!targetStatus) {
-      const overLead = leads.find((l) => l.id === overId);
-      if (overLead) targetStatus = overLead.status as typeof STATUS_COLUMNS[number]["id"];
-    }
-    if (!targetStatus || targetStatus === activeLead.status) return;
-
-    updateLead(activeId, { status: targetStatus });
-    persistStatus(activeId, targetStatus);
-  }
+  const stats = useMemo(() => {
+    const withEmail = leads.filter((lead) => getEmails(lead).length > 0).length;
+    const noSocial = leads.filter((lead) => getSocialQuality(lead) === "none").length;
+    const goodSocial = leads.filter((lead) => getSocialQuality(lead) === "good").length;
+    const franchise = leads.filter((lead) => getEnrichment(lead).isFranchise === true).length;
+    return { withEmail, noSocial, goodSocial, franchise };
+  }, [leads]);
 
   async function handleRunScout() {
-    if (productFilter === "all") {
-      setScoutMessage("Select a product first");
-      setTimeout(() => setScoutMessage(null), 3000);
+    const trimmedCity = city.trim();
+    if (!trimmedCity) {
+      setMessage("Enter a California city first.");
       return;
     }
-    setScoutRunning(true);
-    setScoutMessage("Submitting scout job to Google Maps…");
 
-    const trimmedQuery = scoutSearchQuery.trim();
-    const trimmedLocation = scoutLocation.trim();
+    setRunning(true);
+    setMessage(`Fetching dental clinics in ${trimmedCity}, ${state}...`);
 
     try {
       const res = await fetch("/api/scout/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          productId: productFilter,
-          // Fall back to CA only when no location is specified. Location
-          // overrides the default + bypasses the product's city rotation.
-          state: trimmedLocation ? "" : "CA",
-          ...(trimmedQuery ? { searchQuery: trimmedQuery } : {}),
-          ...(trimmedLocation ? { location: trimmedLocation } : {}),
+          productId: product.id,
+          state,
+          city: trimmedCity,
+          limit,
         }),
       });
-
       const body = await res.json();
 
       if (!res.ok || body.success === false) {
-        const googleDetail = body.googleErrorMessage
-          ? ` (${body.googleStatus ?? "ERROR"}: ${body.googleErrorMessage})`
-          : body.googleStatus
-          ? ` (${body.googleStatus})`
-          : "";
-        setScoutMessage(`Scout failed: ${body.error ?? "unknown"}${googleDetail}`);
-        setScoutRunning(false);
-        setTimeout(() => setScoutMessage(null), 8000);
+        setMessage(body.error ?? `Scout failed (${res.status})`);
         return;
       }
 
-      if (typeof body.leadsCreated === "number") {
-        setScoutRunning(false);
-        setScoutMessage(
-          `Scout done — ${body.leadsCreated} leads added${
-            body.duplicatesSkipped ? `, ${body.duplicatesSkipped} dupes skipped` : ""
-          }. Reloading…`
-        );
-        setTimeout(() => window.location.reload(), 1200);
-        return;
-      }
-
-      const jobId = body.jobId as string;
-      setScoutMessage("Scout running… polling every 5s");
-      pollScoutJob(jobId);
+      setMessage(
+        `Added ${body.leadsCreated} dental clinics${
+          body.duplicatesSkipped ? `, skipped ${body.duplicatesSkipped} duplicates` : ""
+        }. Reloading...`
+      );
+      setTimeout(() => window.location.reload(), 900);
     } catch (err) {
-      setScoutMessage(`Scout error: ${err instanceof Error ? err.message : "unknown"}`);
-      setScoutRunning(false);
-      setTimeout(() => setScoutMessage(null), 6000);
+      setMessage(err instanceof Error ? err.message : "Scout failed");
+    } finally {
+      setRunning(false);
     }
   }
 
-  const pollScoutJob = useCallback((jobId: string) => {
-    if (pollRef.current) window.clearInterval(pollRef.current);
-
-    const poll = async () => {
-      try {
-        const res = await fetch(`/api/scout/jobs/${jobId}`);
-        const body = await res.json();
-
-        if (body.status === "done") {
-          if (pollRef.current) window.clearInterval(pollRef.current);
-          pollRef.current = null;
-          setScoutRunning(false);
-          setScoutMessage(`Scout done — ${body.resultsCount} leads added. Reloading…`);
-          // Hard reload to pick up new leads from the server component
-          setTimeout(() => window.location.reload(), 1200);
-        } else if (body.status === "failed") {
-          if (pollRef.current) window.clearInterval(pollRef.current);
-          pollRef.current = null;
-          setScoutRunning(false);
-          setScoutMessage(`Scout failed: ${body.error ?? "unknown"}`);
-          setTimeout(() => setScoutMessage(null), 6000);
-        }
-      } catch (err) {
-        console.error("poll error:", err);
-      }
-    };
-
-    poll();
-    pollRef.current = window.setInterval(poll, 5000);
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (pollRef.current) window.clearInterval(pollRef.current);
-    };
-  }, []);
+  async function patchLead(id: string, patch: Partial<Lead>) {
+    setLeads((prev) => prev.map((lead) => (lead.id === id ? { ...lead, ...patch } : lead)));
+    const res = await fetch(`/api/leads/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+    if (!res.ok) {
+      setMessage("Could not save lead update. Reload if the row looks stale.");
+    }
+  }
 
   function handleExport() {
-    const qs = productFilter !== "all" ? `?productId=${productFilter}` : "";
-    window.open(`/api/leads/export${qs}`, "_blank");
+    window.open(`/api/leads/export?productId=${product.id}`, "_blank");
+  }
+
+  async function confirmReset() {
+    setResetting(true);
+    setResetError(null);
+    try {
+      const res = await fetch("/api/leads", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productId: product.id, confirmSlug: product.slug }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setResetError(body.error ?? `Reset failed (${res.status})`);
+        return;
+      }
+      setLeads([]);
+      setShowResetModal(false);
+      setResetConfirmText("");
+    } catch (err) {
+      setResetError(err instanceof Error ? err.message : "Network error");
+    } finally {
+      setResetting(false);
+    }
   }
 
   return (
-    <div>
-      {/* Header */}
-      <div className="mb-5">
-        <h2 className="text-2xl font-bold tracking-tight">CRM</h2>
-        <p className="text-muted-foreground text-sm mt-1">
-          Leads from Scout, Radar, inbound, and manual capture. Drag cards between columns as you work them.
-        </p>
-      </div>
-
-      {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-2 mb-5">
-        <select
-          value={productFilter}
-          onChange={(e) => setProductFilter(e.target.value)}
-          className="rounded-lg border border-border bg-card px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
-        >
-          {products.length > 1 && <option value="all">All Products</option>}
-          {products.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-
-        <input
-          type="text"
-          value={scoutSearchQuery}
-          onChange={(e) => setScoutSearchQuery(e.target.value)}
-          placeholder='What to find (e.g. "dental clinic")'
-          disabled={scoutRunning}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !scoutRunning) handleRunScout();
-          }}
-          className="w-56 rounded-lg border border-border bg-card px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 disabled:opacity-50"
-        />
-
-        <input
-          type="text"
-          value={scoutLocation}
-          onChange={(e) => setScoutLocation(e.target.value)}
-          placeholder='Where (e.g. "Cairo, Egypt")'
-          disabled={scoutRunning}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !scoutRunning) handleRunScout();
-          }}
-          className="w-52 rounded-lg border border-border bg-card px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 disabled:opacity-50"
-        />
-
-        <button
-          onClick={handleRunScout}
-          disabled={scoutRunning}
-          className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-50"
-        >
-          {scoutRunning ? (
-            <Loader2 size={12} className="animate-spin" />
-          ) : (
-            <Play size={12} />
-          )}
-          Run Scout
-        </button>
-
-        <button
-          onClick={() => setShowAddForm(true)}
-          className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-        >
-          <Plus size={12} />
-          Add Lead
-        </button>
-
-        <button
-          onClick={handleExport}
-          className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-        >
-          <Download size={12} />
-          Export CSV
-        </button>
-
-        {/* Reset leads — scoped to the selected product only. The button is
-            disabled whenever "All Products" is selected so a missed click can't
-            nuke leads across the fleet. */}
-        <button
-          onClick={() => {
-            setResetConfirmText("");
-            setResetError(null);
-            setShowResetModal(true);
-          }}
-          disabled={productFilter === "all" || resetting}
-          title={
-            productFilter === "all"
-              ? "Pick a specific product first"
-              : "Delete every lead for the selected product"
-          }
-          className="flex items-center gap-1.5 rounded-lg border border-red-400/30 bg-card px-3 py-1.5 text-xs font-medium text-red-400 hover:bg-red-400/10 hover:border-red-400/50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          <Trash2 size={12} />
-          Reset leads
-        </button>
-
-        <span className="text-xs text-muted-foreground ml-auto">
-          {filtered.length} lead{filtered.length !== 1 ? "s" : ""}
-        </span>
-      </div>
-
-      {scoutMessage && (
-        <div className="mb-4 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-primary">
-          {scoutMessage}
-        </div>
-      )}
-
-      {/* Kanban */}
-      {filtered.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border py-16 text-center">
-          <Users size={32} className="mx-auto text-muted-foreground mb-3" />
-          <p className="text-sm text-muted-foreground">
-            No leads yet. Click Run Scout to pull CSLB-licensed ADU builders, or Add Lead for manual entries.
+    <div className="space-y-5">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+        <div>
+          <div className="flex items-center gap-2">
+            <Stethoscope size={22} className="text-primary" />
+            <h1 className="text-2xl font-bold tracking-tight">Dental CRM</h1>
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Live California dental clinic discovery with websites, emails, social links,
+            video signal, founding date, and franchise checks.
           </p>
         </div>
-      ) : (
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCorners}
-          onDragStart={handleDragStart}
-          onDragEnd={handleDragEnd}
-        >
-          <div className="flex gap-3 overflow-x-auto pb-4">
-            {STATUS_COLUMNS.map((col) => {
-              const items = getColumn(col.id);
-              return (
-                <KanbanColumn
-                  key={col.id}
-                  id={col.id}
-                  label={col.label}
-                  color={col.color}
-                  items={items}
-                  onCardClick={(lead) => setActiveLead(lead)}
-                />
-              );
-            })}
-          </div>
 
-          <DragOverlay>
-            {draggingLead ? (
-              <div className="rounded-lg border border-primary bg-card p-3 shadow-xl rotate-3">
-                <div className="text-sm font-semibold">{draggingLead.name}</div>
-                {draggingLead.company && (
-                  <div className="text-xs text-muted-foreground mt-0.5">
-                    {draggingLead.company}
-                  </div>
-                )}
-              </div>
-            ) : null}
-          </DragOverlay>
-        </DndContext>
+        <div className="grid gap-2 rounded-lg border border-border bg-card/70 p-3 sm:grid-cols-[150px_180px_96px_auto]">
+          <label className="block">
+            <span className="mb-1 block text-[10px] uppercase text-muted-foreground">
+              State
+            </span>
+            <select
+              value={state}
+              onChange={(event) => setState(event.target.value)}
+              disabled={running}
+              className="h-9 w-full rounded-md border border-border bg-background px-2 text-xs"
+            >
+              <option value="California">California</option>
+            </select>
+          </label>
+
+          <label className="block">
+            <span className="mb-1 block text-[10px] uppercase text-muted-foreground">
+              City
+            </span>
+            <input
+              value={city}
+              onChange={(event) => setCity(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !running) handleRunScout();
+              }}
+              disabled={running}
+              placeholder="San Diego"
+              className="h-9 w-full rounded-md border border-border bg-background px-2 text-xs"
+            />
+          </label>
+
+          <label className="block">
+            <span className="mb-1 block text-[10px] uppercase text-muted-foreground">
+              Limit
+            </span>
+            <select
+              value={limit}
+              onChange={(event) => setLimit(Number(event.target.value))}
+              disabled={running}
+              className="h-9 w-full rounded-md border border-border bg-background px-2 text-xs"
+            >
+              {[5, 10, 15, 20, 30].map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <button
+            onClick={handleRunScout}
+            disabled={running}
+            className="mt-4 inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50 sm:mt-5"
+          >
+            {running ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
+            Fetch Dental
+          </button>
+        </div>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-4">
+        <Stat label="Total clinics" value={leads.length} />
+        <Stat label="Emails found" value={stats.withEmail} />
+        <Stat label="Good social" value={stats.goodSocial} />
+        <Stat label="No social" value={stats.noSocial} />
+      </div>
+
+      <div className="rounded-lg border border-border bg-card/60 p-3">
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="min-w-64 flex-1">
+            <span className="mb-1 flex items-center gap-1 text-[10px] uppercase text-muted-foreground">
+              <Search size={11} />
+              Search
+            </span>
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Clinic, website, email, social handle..."
+              className="h-9 w-full rounded-md border border-border bg-background px-2 text-xs"
+            />
+          </label>
+
+          <FilterSelect label="City" value={cityFilter} onChange={setCityFilter}>
+            <option value="all">All cities</option>
+            {cities.map((value) => (
+              <option key={value} value={value}>
+                {value}
+              </option>
+            ))}
+          </FilterSelect>
+
+          <FilterSelect label="Social" value={socialFilter} onChange={(v) => setSocialFilter(v as SocialFilter)}>
+            <option value="all">All social</option>
+            <option value="good">Good videos</option>
+            <option value="not-good">Not good</option>
+            <option value="none">No social</option>
+            <option value="unknown">Unknown</option>
+          </FilterSelect>
+
+          <FilterSelect label="Email" value={emailFilter} onChange={(v) => setEmailFilter(v as BinaryFilter)}>
+            <option value="all">Any email</option>
+            <option value="yes">Has email</option>
+            <option value="no">No email</option>
+          </FilterSelect>
+
+          <FilterSelect
+            label="Franchise"
+            value={franchiseFilter}
+            onChange={(v) => setFranchiseFilter(v as BinaryFilter)}
+          >
+            <option value="all">Any</option>
+            <option value="yes">Franchise</option>
+            <option value="no">Independent</option>
+          </FilterSelect>
+
+          <FilterSelect label="Status" value={statusFilter} onChange={setStatusFilter}>
+            <option value="all">All statuses</option>
+            {STATUS_OPTIONS.map((status) => (
+              <option key={status} value={status}>
+                {status}
+              </option>
+            ))}
+          </FilterSelect>
+
+          <button
+            onClick={() => {
+              setQuery("");
+              setCityFilter("all");
+              setSocialFilter("all");
+              setEmailFilter("all");
+              setFranchiseFilter("all");
+              setStatusFilter("all");
+            }}
+            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border px-3 text-xs text-muted-foreground hover:text-foreground"
+          >
+            <RotateCcw size={12} />
+            Clear
+          </button>
+
+          <button
+            onClick={handleExport}
+            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border px-3 text-xs text-muted-foreground hover:text-foreground"
+          >
+            <Download size={12} />
+            Export CSV
+          </button>
+
+          <button
+            onClick={() => {
+              setResetError(null);
+              setResetConfirmText("");
+              setShowResetModal(true);
+            }}
+            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-red-400/30 px-3 text-xs text-red-400 hover:bg-red-400/10"
+          >
+            <Trash2 size={12} />
+            Reset
+          </button>
+        </div>
+      </div>
+
+      {message && (
+        <div className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-primary">
+          {message}
+        </div>
       )}
+
+      <div className="overflow-hidden rounded-lg border border-border bg-card/70">
+        <div className="flex items-center justify-between border-b border-border px-3 py-2">
+          <span className="text-xs text-muted-foreground">
+            Showing {filtered.length} of {leads.length} clinics
+          </span>
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+            Dental only
+          </span>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[1450px] text-left text-xs">
+            <thead className="border-b border-border bg-muted/20 text-[10px] uppercase text-muted-foreground">
+              <tr>
+                <Th>Clinic</Th>
+                <Th>Address</Th>
+                <Th>Phone</Th>
+                <Th>Email</Th>
+                <Th>Website</Th>
+                <Th>Instagram</Th>
+                <Th>TikTok</Th>
+                <Th>Good social</Th>
+                <Th>Founded</Th>
+                <Th>Franchise</Th>
+                <Th>Status</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((lead) => (
+                <ClinicRow
+                  key={lead.id}
+                  lead={lead}
+                  onOpen={() => setActiveLead(lead)}
+                  onStatusChange={(status) => patchLead(lead.id, { status })}
+                />
+              ))}
+              {filtered.length === 0 && (
+                <tr>
+                  <td colSpan={11} className="px-4 py-12 text-center text-muted-foreground">
+                    No clinics match these filters.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
       {activeLead && (
         <LeadDrawer
           lead={activeLead}
           onClose={() => setActiveLead(null)}
-          onUpdate={updateLead}
-          onDelete={(id) => setLeads((prev) => prev.filter((l) => l.id !== id))}
-        />
-      )}
-
-      {showAddForm && (
-        <AddLeadForm
-          products={products}
-          defaultProductId={productFilter !== "all" ? productFilter : products[0]?.id}
-          onClose={() => setShowAddForm(false)}
-          onCreated={(lead) => {
-            setLeads((prev) => [lead, ...prev]);
-            setShowAddForm(false);
+          onUpdate={(id, patch) => {
+            setLeads((prev) =>
+              prev.map((lead) => (lead.id === id ? { ...lead, ...patch } : lead))
+            );
           }}
+          onDelete={(id) => setLeads((prev) => prev.filter((lead) => lead.id !== id))}
         />
       )}
 
-      {showResetModal && productFilter !== "all" && (() => {
-        const product = products.find((p) => p.id === productFilter);
-        if (!product) return null;
-        // Bind non-null values into the closure so the nested async function
-        // doesn't lose the type narrowing from the early return above.
-        const productId = product.id;
-        const productSlug = product.slug;
-        const leadCount = leads.filter((l) => l.productId === productFilter).length;
-        const slugMatches = resetConfirmText.trim() === productSlug;
-
-        async function confirmReset() {
-          setResetting(true);
-          setResetError(null);
-          try {
-            const res = await fetch("/api/leads", {
-              method: "DELETE",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ productId, confirmSlug: productSlug }),
-            });
-            const body = await res.json().catch(() => ({}));
-            if (!res.ok) {
-              setResetError(body.error ?? `Reset failed (${res.status})`);
-              return;
-            }
-            // Drop every lead for this product from local state — no reload needed.
-            setLeads((prev) => prev.filter((l) => l.productId !== productId));
-            setShowResetModal(false);
-            setResetConfirmText("");
-          } catch (err) {
-            setResetError(err instanceof Error ? err.message : "Network error");
-          } finally {
-            setResetting(false);
-          }
-        }
-
-        return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-            <div className="w-full max-w-md rounded-xl border border-red-400/30 bg-card p-6 shadow-2xl">
-              <div className="flex items-start gap-3 mb-4">
-                <Trash2 size={20} className="text-red-400 shrink-0 mt-0.5" />
-                <div>
-                  <h3 className="text-sm font-semibold">Reset leads for {product.name}?</h3>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    This permanently deletes <strong>{leadCount} lead{leadCount === 1 ? "" : "s"}</strong>{" "}
-                    scoped to <code className="text-[11px]">{product.slug}</code>. Irreversible.
-                  </p>
-                </div>
+      {showResetModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-xl border border-red-400/30 bg-card p-6 shadow-2xl">
+            <div className="mb-4 flex items-start gap-3">
+              <Trash2 size={20} className="mt-0.5 shrink-0 text-red-400" />
+              <div>
+                <h3 className="text-sm font-semibold">Reset dental CRM?</h3>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  This deletes {leads.length} dental clinic lead{leads.length === 1 ? "" : "s"}.
+                  Type <code className="text-[11px] text-foreground">{product.slug}</code> to confirm.
+                </p>
               </div>
+            </div>
 
-              <div className="mb-3">
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-                  Type <code className="text-[11px] text-foreground">{product.slug}</code> to confirm
-                </label>
-                <input
-                  type="text"
-                  value={resetConfirmText}
-                  onChange={(e) => setResetConfirmText(e.target.value)}
-                  autoFocus
-                  disabled={resetting}
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-red-400/50 disabled:opacity-50"
-                  placeholder={product.slug}
-                />
-              </div>
+            <input
+              value={resetConfirmText}
+              onChange={(event) => setResetConfirmText(event.target.value)}
+              disabled={resetting}
+              className="mb-3 h-9 w-full rounded-md border border-border bg-background px-3 text-xs font-mono"
+              placeholder={product.slug}
+            />
 
-              {resetError && (
-                <p className="text-xs text-red-400 mb-3">{resetError}</p>
-              )}
+            {resetError && <p className="mb-3 text-xs text-red-400">{resetError}</p>}
 
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={confirmReset}
-                  disabled={!slugMatches || resetting}
-                  className="flex-1 rounded-md bg-red-500/20 border border-red-500/40 text-red-400 text-xs font-medium py-2 hover:bg-red-500/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  {resetting ? "Deleting…" : `Delete ${leadCount} lead${leadCount === 1 ? "" : "s"}`}
-                </button>
-                <button
-                  onClick={() => {
-                    setShowResetModal(false);
-                    setResetConfirmText("");
-                    setResetError(null);
-                  }}
-                  disabled={resetting}
-                  className="rounded-md border border-border text-xs text-muted-foreground px-3 py-2 hover:bg-muted/30 transition-colors disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-              </div>
+            <div className="flex gap-2">
+              <button
+                onClick={confirmReset}
+                disabled={resetConfirmText.trim() !== product.slug || resetting}
+                className="flex-1 rounded-md border border-red-500/40 bg-red-500/20 py-2 text-xs font-medium text-red-400 disabled:opacity-40"
+              >
+                {resetting ? "Deleting..." : "Delete leads"}
+              </button>
+              <button
+                onClick={() => setShowResetModal(false)}
+                disabled={resetting}
+                className="rounded-md border border-border px-3 py-2 text-xs text-muted-foreground hover:text-foreground"
+              >
+                Cancel
+              </button>
             </div>
           </div>
-        );
-      })()}
+        </div>
+      )}
     </div>
   );
 }
 
-function KanbanColumn({
-  id,
-  label,
-  color,
-  items,
-  onCardClick,
+function ClinicRow({
+  lead,
+  onOpen,
+  onStatusChange,
 }: {
-  id: string;
-  label: string;
-  color: string;
-  items: Lead[];
-  onCardClick: (lead: Lead) => void;
+  lead: Lead;
+  onOpen: () => void;
+  onStatusChange: (status: string) => void;
 }) {
-  return (
-    <div className={`w-72 shrink-0 rounded-xl border ${color} flex flex-col min-h-[500px]`}>
-      <div className="px-3 py-2.5 border-b border-border/60 flex items-center justify-between">
-        <h3 className="text-xs font-semibold uppercase tracking-wide">{label}</h3>
-        <span className="text-[10px] font-mono opacity-60">{items.length}</span>
-      </div>
-      <SortableContext
-        id={id}
-        items={items.map((l) => l.id)}
-        strategy={verticalListSortingStrategy}
-      >
-        <div className="flex-1 p-2 space-y-2 overflow-y-auto" data-column-id={id}>
-          {items.map((lead) => (
-            <LeadCard key={lead.id} lead={lead} onClick={() => onCardClick(lead)} />
-          ))}
-          {items.length === 0 && (
-            <div className="text-[10px] text-muted-foreground text-center py-8">
-              empty
-            </div>
-          )}
-        </div>
-      </SortableContext>
-    </div>
-  );
-}
-
-function LeadCard({ lead, onClick }: { lead: Lead; onClick: () => void }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: lead.id,
-  });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.4 : 1,
-  };
+  const enrichment = getEnrichment(lead);
+  const emails = getEmails(lead);
+  const instagram = asStringArray(enrichment.instagram);
+  const tiktok = asStringArray(enrichment.tiktok);
+  const address = asString(enrichment.address);
+  const phone = asString(enrichment.phone);
+  const website = asString(enrichment.website);
+  const quality = getSocialQuality(lead);
 
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      {...attributes}
-      {...listeners}
-      onClick={() => {
-        // only open drawer on click without drag
-        if (!isDragging) onClick();
-      }}
-      className="rounded-lg border border-border bg-card p-2.5 cursor-grab active:cursor-grabbing hover:border-primary/40 transition-colors"
-    >
-      <div className="flex items-start justify-between gap-2 mb-1">
-        <div className="text-xs font-semibold line-clamp-1 flex-1">{lead.name}</div>
-        <span
-          className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full shrink-0 ${
-            SOURCE_STYLES[lead.source] ?? "bg-zinc-500/10 text-zinc-400"
-          }`}
-        >
-          {lead.source}
-        </span>
-      </div>
-
-      {lead.company && (
-        <div className="flex items-center gap-1 text-[10px] text-muted-foreground mb-0.5">
-          <Building2 size={9} />
-          <span className="line-clamp-1">{lead.company}</span>
+    <tr className="border-b border-border/60 hover:bg-muted/20">
+      <Td>
+        <button onClick={onOpen} className="max-w-64 text-left font-semibold text-primary hover:underline">
+          {lead.name}
+        </button>
+        <div className="mt-1 text-[10px] text-muted-foreground">{lead.city}, {lead.state}</div>
+      </Td>
+      <Td>
+        <div className="flex max-w-72 items-start gap-1.5 text-muted-foreground">
+          <MapPin size={11} className="mt-0.5 shrink-0" />
+          <span className="line-clamp-2">{address || "Unknown"}</span>
         </div>
-      )}
-
-      {(lead.city || lead.state) && (
-        <div className="flex items-center gap-1 text-[10px] text-muted-foreground mb-0.5">
-          <MapPin size={9} />
-          <span>{[lead.city, lead.state].filter(Boolean).join(", ")}</span>
-        </div>
-      )}
-
-      {lead.role && (
-        <div className="text-[10px] text-muted-foreground mb-1">{lead.role}</div>
-      )}
-
-      <div className="flex items-center justify-between mt-1.5 pt-1.5 border-t border-border/40">
-        {lead.lastTouchAt ? (
-          <span className="flex items-center gap-1 text-[9px] text-muted-foreground">
-            <Clock size={9} />
-            {formatDistanceToNow(new Date(lead.lastTouchAt), { addSuffix: true })}
+      </Td>
+      <Td>
+        {phone ? (
+          <a className="inline-flex items-center gap-1 hover:text-primary" href={`tel:${phone}`}>
+            <Phone size={11} />
+            {phone}
+          </a>
+        ) : (
+          <Muted>None</Muted>
+        )}
+      </Td>
+      <Td>
+        {emails.length > 0 ? (
+          <a className="inline-flex max-w-52 items-center gap-1 truncate hover:text-primary" href={`mailto:${emails[0]}`}>
+            <Mail size={11} />
+            {emails[0]}
+          </a>
+        ) : (
+          <Muted>None found</Muted>
+        )}
+      </Td>
+      <Td>
+        {website ? (
+          <ExternalAnchor href={website} label={trimUrl(website)} />
+        ) : (
+          <Muted>None</Muted>
+        )}
+      </Td>
+      <Td>
+        {instagram.length > 0 ? <ExternalAnchor href={instagram[0]} label="Instagram" /> : <Muted>No</Muted>}
+      </Td>
+      <Td>
+        {tiktok.length > 0 ? <ExternalAnchor href={tiktok[0]} label="TikTok" /> : <Muted>No</Muted>}
+      </Td>
+      <Td>
+        <SocialBadge quality={quality} maxViews={asNumber(enrichment.maxVideoViews)} />
+      </Td>
+      <Td>{asString(enrichment.foundingDate) || <Muted>Unknown</Muted>}</Td>
+      <Td>
+        {enrichment.isFranchise === true ? (
+          <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] text-amber-400">
+            <ShieldQuestion size={10} />
+            Yes
           </span>
         ) : (
-          <span className="text-[9px] text-muted-foreground">
-            Added {formatDistanceToNow(new Date(lead.createdAt), { addSuffix: true })}
+          <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-400">
+            No
           </span>
         )}
-        {lead.sourceUrl && (
-          <a
-            href={lead.sourceUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
-            className="text-muted-foreground hover:text-foreground"
-            title="Open source"
-          >
-            <ExternalLink size={10} />
-          </a>
-        )}
-      </div>
-    </div>
+      </Td>
+      <Td>
+        <select
+          value={lead.status}
+          onClick={(event) => event.stopPropagation()}
+          onChange={(event) => onStatusChange(event.target.value)}
+          className="h-8 rounded-md border border-border bg-background px-2 text-[11px]"
+        >
+          {STATUS_OPTIONS.map((status) => (
+            <option key={status} value={status}>
+              {status}
+            </option>
+          ))}
+        </select>
+      </Td>
+    </tr>
   );
 }
 
-function AddLeadForm({
-  products,
-  defaultProductId,
-  onClose,
-  onCreated,
+function SocialBadge({
+  quality,
+  maxViews,
 }: {
-  products: Product[];
-  defaultProductId?: string;
-  onClose: () => void;
-  onCreated: (lead: Lead) => void;
+  quality: SocialFilter;
+  maxViews: number | null;
 }) {
-  const [form, setForm] = useState({
-    productId: defaultProductId ?? products[0]?.id ?? "",
-    name: "",
-    company: "",
-    role: "",
-    email: "",
-    city: "",
-    state: "",
-    sourceUrl: "",
-    notes: "",
-  });
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    if (!form.name.trim() || !form.productId) {
-      setError("Name and product are required");
-      return;
-    }
-    setSubmitting(true);
-    try {
-      const res = await fetch("/api/leads", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          productId: form.productId,
-          name: form.name.trim(),
-          company: form.company.trim() || null,
-          role: form.role.trim() || null,
-          email: form.email.trim() || null,
-          city: form.city.trim() || null,
-          state: form.state.trim() || null,
-          sourceUrl: form.sourceUrl.trim() || null,
-          notes: form.notes.trim() || null,
-          source: "manual",
-        }),
-      });
-      const body = await res.json();
-      if (!res.ok) {
-        setError(body.error ?? "Failed to create lead");
-        return;
-      }
-      const lead = body.lead;
-      const product = products.find((p) => p.id === lead.productId);
-      onCreated({
-        ...lead,
-        productName: product?.name ?? "",
-        productSlug: product?.slug ?? "",
-        enrichmentJson: lead.enrichmentJson ?? {},
-        createdAt:
-          typeof lead.createdAt === "string"
-            ? lead.createdAt
-            : new Date(lead.createdAt).toISOString(),
-        lastTouchAt: lead.lastTouchAt ?? null,
-      });
-    } finally {
-      setSubmitting(false);
-    }
+  if (quality === "good") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-400">
+        <Video size={10} />
+        Yes {maxViews ? `(${formatViews(maxViews)})` : ""}
+      </span>
+    );
   }
-
+  if (quality === "not-good") {
+    return (
+      <span className="rounded-full bg-zinc-500/10 px-2 py-0.5 text-[10px] text-zinc-400">
+        No {maxViews ? `(${formatViews(maxViews)})` : ""}
+      </span>
+    );
+  }
+  if (quality === "none") {
+    return (
+      <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-[10px] text-red-400">
+        No social
+      </span>
+    );
+  }
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="w-full max-w-md rounded-xl border border-border bg-card p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-semibold">Add Lead (Manual)</h3>
-          <button
-            onClick={onClose}
-            className="text-muted-foreground hover:text-foreground"
-            aria-label="Close"
-          >
-            ×
-          </button>
-        </div>
+    <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] text-amber-400">
+      Unknown
+    </span>
+  );
+}
 
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <FormField label="Product">
-            <select
-              value={form.productId}
-              onChange={(e) => setForm((f) => ({ ...f, productId: e.target.value }))}
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs"
-            >
-              {products.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </FormField>
-          <FormField label="Name *">
-            <input
-              type="text"
-              value={form.name}
-              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs"
-              placeholder="John Contractor"
-              required
-            />
-          </FormField>
-          <div className="grid grid-cols-2 gap-2">
-            <FormField label="Company">
-              <input
-                type="text"
-                value={form.company}
-                onChange={(e) => setForm((f) => ({ ...f, company: e.target.value }))}
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs"
-              />
-            </FormField>
-            <FormField label="Role">
-              <input
-                type="text"
-                value={form.role}
-                onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs"
-              />
-            </FormField>
-          </div>
-          <FormField label="Email">
-            <input
-              type="email"
-              value={form.email}
-              onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs"
-            />
-          </FormField>
-          <div className="grid grid-cols-2 gap-2">
-            <FormField label="City">
-              <input
-                type="text"
-                value={form.city}
-                onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))}
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs"
-              />
-            </FormField>
-            <FormField label="State">
-              <input
-                type="text"
-                value={form.state}
-                onChange={(e) => setForm((f) => ({ ...f, state: e.target.value }))}
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs"
-                placeholder="CA"
-              />
-            </FormField>
-          </div>
-          <FormField label="Source URL">
-            <input
-              type="url"
-              value={form.sourceUrl}
-              onChange={(e) => setForm((f) => ({ ...f, sourceUrl: e.target.value }))}
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs"
-              placeholder="https://..."
-            />
-          </FormField>
-          <FormField label="Notes">
-            <textarea
-              value={form.notes}
-              onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-              rows={3}
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs resize-none"
-              placeholder="How did you find them?"
-            />
-          </FormField>
-
-          {error && <p className="text-xs text-red-400">{error}</p>}
-
-          <div className="flex items-center gap-2 pt-2">
-            <button
-              type="submit"
-              disabled={submitting}
-              className="flex-1 rounded-lg bg-primary px-4 py-2 text-xs font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
-            >
-              {submitting ? "Creating…" : "Create Lead"}
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-lg border border-border bg-card px-4 py-2 text-xs font-medium text-muted-foreground hover:text-foreground"
-            >
-              Cancel
-            </button>
-          </div>
-        </form>
-      </div>
+function Stat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-lg border border-border bg-card/70 p-3">
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className="mt-1 text-2xl font-semibold">{value}</div>
     </div>
   );
 }
 
-function FormField({
+function FilterSelect({
   label,
+  value,
+  onChange,
   children,
 }: {
   label: string;
+  value: string;
+  onChange: (value: string) => void;
   children: React.ReactNode;
 }) {
   return (
-    <label className="block">
-      <span className="block text-[10px] uppercase text-muted-foreground mb-1">
+    <label>
+      <span className="mb-1 flex items-center gap-1 text-[10px] uppercase text-muted-foreground">
+        <Filter size={11} />
         {label}
       </span>
-      {children}
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-9 rounded-md border border-border bg-background px-2 text-xs"
+      >
+        {children}
+      </select>
     </label>
   );
+}
+
+function Th({ children }: { children: React.ReactNode }) {
+  return <th className="whitespace-nowrap px-3 py-2 font-medium">{children}</th>;
+}
+
+function Td({ children }: { children: React.ReactNode }) {
+  return <td className="align-top px-3 py-3">{children}</td>;
+}
+
+function Muted({ children }: { children: React.ReactNode }) {
+  return <span className="text-muted-foreground">{children}</span>;
+}
+
+function ExternalAnchor({ href, label }: { href: string; label: string }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={(event) => event.stopPropagation()}
+      className="inline-flex max-w-48 items-center gap-1 truncate text-primary hover:underline"
+    >
+      {label}
+      <ExternalLink size={10} className="shrink-0" />
+    </a>
+  );
+}
+
+function getEnrichment(lead: Lead): Record<string, unknown> {
+  return lead.enrichmentJson ?? {};
+}
+
+function getEmails(lead: Lead): string[] {
+  const enrichment = getEnrichment(lead);
+  const emails = asStringArray(enrichment.emails);
+  if (lead.email && !emails.includes(lead.email)) emails.unshift(lead.email);
+  return emails;
+}
+
+function getSocialLinks(lead: Lead): string[] {
+  const enrichment = getEnrichment(lead);
+  return [
+    ...asStringArray(enrichment.socialLinks),
+    ...asStringArray(enrichment.instagram),
+    ...asStringArray(enrichment.tiktok),
+  ];
+}
+
+function getSocialQuality(lead: Lead): SocialFilter {
+  const enrichment = getEnrichment(lead);
+  const hasSocial =
+    enrichment.hasSocialMedia === true ||
+    getSocialLinks(lead).length > 0 ||
+    asStringArray(enrichment.instagram).length > 0 ||
+    asStringArray(enrichment.tiktok).length > 0;
+
+  if (!hasSocial) return "none";
+  if (enrichment.goodSocialMedia === true) return "good";
+  if (enrichment.goodSocialMedia === false) return "not-good";
+  return "unknown";
+}
+
+function asString(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+function asNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function asStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === "string" && item.length > 0);
+}
+
+function trimUrl(url: string): string {
+  return url.replace(/^https?:\/\//, "").replace(/\/$/, "");
+}
+
+function formatViews(value: number): string {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `${Math.round(value / 1_000)}K`;
+  return String(value);
 }
