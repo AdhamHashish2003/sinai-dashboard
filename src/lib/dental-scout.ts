@@ -1,3 +1,5 @@
+import { normalizeCaliforniaCity } from "@/lib/california-cities";
+
 const GOOGLE_TEXT_SEARCH_URL = "https://maps.googleapis.com/maps/api/place/textsearch/json";
 const GOOGLE_DETAILS_URL = "https://maps.googleapis.com/maps/api/place/details/json";
 
@@ -126,8 +128,10 @@ export async function runDentalScout({
   const apiKey = process.env.GOOGLE_MAPS_API_KEY;
   if (!apiKey) throw new Error("GOOGLE_MAPS_API_KEY not set");
 
-  const cleanCity = city.trim();
+  const cleanCity = normalizeCaliforniaCity(city);
+  if (!cleanCity) throw new Error("Invalid California city");
   const cleanState = normalizeState(state);
+  if (cleanState !== "California") throw new Error("Only California is supported right now");
   const searchQueries = [
     `dental clinic in ${cleanCity}, ${cleanState}`,
     `dentist in ${cleanCity}, ${cleanState}`,

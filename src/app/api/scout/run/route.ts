@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { normalizeState, runDentalScout } from "@/lib/dental-scout";
+import { normalizeCaliforniaCity } from "@/lib/california-cities";
 import { z } from "zod";
 
 export const maxDuration = 180;
@@ -76,8 +77,24 @@ export async function POST(request: Request) {
       );
     }
 
-    const { productId, city, limit } = parsed.data;
+    const { productId, limit } = parsed.data;
     const state = normalizeState(parsed.data.state);
+    if (state !== "California") {
+      return NextResponse.json(
+        { error: "Only California is supported right now" },
+        { status: 400 }
+      );
+    }
+
+    const city = normalizeCaliforniaCity(parsed.data.city);
+    if (!city) {
+      return NextResponse.json(
+        {
+          error: "Invalid city. Choose a city from the California city list.",
+        },
+        { status: 400 }
+      );
+    }
     const product = await ensureDentalProduct(productId);
 
     const localJob = await db.scoutJob.create({

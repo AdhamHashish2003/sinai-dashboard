@@ -18,6 +18,7 @@ import {
   Video,
 } from "lucide-react";
 import { LeadDrawer, type Lead } from "./lead-drawer";
+import { CALIFORNIA_CITIES } from "@/lib/california-cities";
 
 interface Product {
   id: string;
@@ -231,16 +232,21 @@ export function CrmClient({ product, leads: initial }: Props) {
             <span className="mb-1 block text-[10px] uppercase text-muted-foreground">
               City
             </span>
-            <input
+            <select
               value={city}
               onChange={(event) => setCity(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && !running) handleRunScout();
-              }}
               disabled={running}
-              placeholder="San Diego"
               className="h-9 w-full rounded-md border border-border bg-background px-2 text-xs"
-            />
+            >
+              <option value="" disabled>
+                Select a city
+              </option>
+              {CALIFORNIA_CITIES.map((cityName) => (
+                <option key={cityName} value={cityName}>
+                  {cityName}
+                </option>
+              ))}
+            </select>
           </label>
 
           <label className="block">
